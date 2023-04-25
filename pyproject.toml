@@ -1,0 +1,86 @@
+[tool.poetry]
+name = "slidge-whatsapp"
+version = "0.0.0-dev0"
+description = "A Whatsapp/XMPP gateway."
+authors = ["deuill <alex@deuill.org>", "Nicoco <nicoco@nicoco.fr>"]
+readme = "README.md"
+
+[[tool.poetry.include]]
+path = "slidge_whatsapp"
+
+[[tool.poetry.include]]
+path = "slidge_whatsapp/generated/*.py"
+format = ["wheel"]
+
+[[tool.poetry.include]]
+path = "slidge_whatsapp/generated/*.so"
+format = ["wheel"]
+
+[tool.poetry.build]
+script = "build.py"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+linkpreview = "^0.6.5"
+pybindgen = "^0.22.1"
+
+[tool.poetry.dependencies.slidge]
+git = "https://git.sr.ht/~nicoco/slidge"
+branch = "split"
+
+[[tool.poetry.source]]
+name = "slidge-repo"
+url = "https://slidge.im/repo"
+
+[tool.poetry.group.dev.dependencies]
+pytest-asyncio = "^0.21.0"
+black = "^23.3.0"
+isort = "^5.12.0"
+ruff = "^0.0.261"
+mypy = "^1.2.0"
+xmldiff = "^2.6.1"
+pre-commit = "^3.2.2"
+sphinx = "^6.1.3"
+furo = "^2023.3.27"
+sphinx-autoapi = "^2.1.0"
+sphinx-argparse = "^0.4.0"
+sphinx-mdinclude = "^0.5.3"
+
+[tool.poetry.group.dev.dependencies.slidge-dev-helpers]
+git = "https://git.sr.ht/~nicoco/slidge-dev-helpers"
+branch = "master"
+
+[build-system]
+requires = ["poetry-core", "pybindgen"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+slidge-whatsapp = 'slidge_whatsapp.__main__:main'
+
+[tool.mypy]
+files = ["slidge_whatsapp"]
+exclude = [
+    "tests",
+    "slidge_whatsapp/generated",
+    "watcher.py",
+]
+check_untyped_defs = true
+strict = false
+
+[[tool.mypy.overrides]]
+module = ["linkpreview"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 120
+exclude = [
+    "tests",
+    "slidge_whatsapp/generated",
+]
+
+[tool.isort]
+profile = "black"
+skip = [
+    "tests",
+    "slidge_whatsapp/generated",
+]

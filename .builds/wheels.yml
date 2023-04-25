@@ -1,0 +1,45 @@
+image: alpine/3.17
+packages:
+  - docker
+  - docker-cli-buildx
+  - poetry
+secrets:
+  - 173244e1-c233-43de-969f-65965c5487e1
+  - 3ecea679-dec7-4ac0-8821-75d0f4fe0773
+artifacts:
+  - ./package.whl
+environment:
+  SET_VERSION_URL: https://git.sr.ht/~nicoco/slidge-dev-helpers/blob/master/slidge_dev_helpers/set_version.py
+tasks:
+  - set-project: |
+      echo PROJECT=$(ls ~) >> ~/.buildenv
+  - version: |
+      cd $PROJECT
+      curl -sSL $SET_VERSION_URL | python -
+  - setup-docker1: |
+      sudo service docker start
+      sudo addgroup build docker
+  - setup-docker2: |
+      while ! test -e /var/run/docker.sock; do sleep 1; done
+      docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
+      docker buildx create --use
+  - build: |
+      cd $PROJECT
+      docker buildx build . \
+        --target wheel \
+        -o ./dist/ \
+        --platform linux/arm64
+      cp ./dist/*.whl ~/package.whl
+  - publish: |
+      if [ -z "$PYPI" ]; then
+        echo Not on master, not publishing
+        exit
+      fi
+
+      set +x
+      export POETRY_PYPI_TOKEN_PYPI=$(cat ~/.pypi-token)
+      set -x
+
+      cd $PROJECT
+
+      poetry publish
