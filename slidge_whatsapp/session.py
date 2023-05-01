@@ -169,12 +169,16 @@ class Session(BaseSession[str, Recipient]):
             text = text + f" at {call_at}"
         self.send_gateway_message(text)
 
-    async def _get_reply_to(self, message: whatsapp.Message):
+    async def _get_reply_to(
+        self, message: whatsapp.Message, muc: Optional["MUC"] = None
+    ) -> Optional[MessageReference]:
         if not message.ReplyID:
-            return
+            return None
         reply_to = MessageReference(
             legacy_id=message.ReplyID,
-            body=message.ReplyBody,
+            body=message.ReplyBody
+            if muc is None
+            else muc.replace_mentions(message.ReplyBody),
         )
         if message.OriginJID == self.contacts.user_legacy_id:
             reply_to.author = self.user
@@ -215,7 +219,7 @@ class Session(BaseSession[str, Recipient]):
         other aspects such as references to other messages for the purposes of quoting or correction.
         """
         contact = await self.get_contact_or_participant(message.JID, message.GroupJID)
-        reply_to = await self._get_reply_to(message)
+        reply_to = await self._get_reply_to(message, getattr(contact, "MUC", None))
         message_timestamp = (
             datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
             if message.Timestamp > 0
