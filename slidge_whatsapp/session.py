@@ -219,7 +219,8 @@ class Session(BaseSession[str, Recipient]):
         other aspects such as references to other messages for the purposes of quoting or correction.
         """
         contact = await self.get_contact_or_participant(message.JID, message.GroupJID)
-        reply_to = await self._get_reply_to(message, getattr(contact, "MUC", None))
+        muc = getattr(contact, "MUC", None)
+        reply_to = await self._get_reply_to(message, muc)
         message_timestamp = (
             datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
             if message.Timestamp > 0
@@ -239,7 +240,7 @@ class Session(BaseSession[str, Recipient]):
             )
         elif message.Kind == whatsapp.MessageAttachment:
             await contact.send_files(
-                attachments=Attachment.convert_list(message.Attachments),
+                attachments=Attachment.convert_list(message.Attachments, muc),
                 legacy_msg_id=message.ID,
                 reply_to=reply_to,
                 when=message_timestamp,
@@ -405,17 +406,24 @@ class Session(BaseSession[str, Recipient]):
 
 class Attachment(LegacyAttachment):
     @staticmethod
-    def convert_list(attachments: list):
+    def convert_list(
+        attachments: list, muc: Optional["MUC"] = None
+    ) -> list["Attachment"]:
         return [
-            Attachment.convert(whatsapp.Attachment(handle=ptr)) for ptr in attachments
+            Attachment.convert(whatsapp.Attachment(handle=ptr), muc)
+            for ptr in attachments
         ]
 
     @staticmethod
-    def convert(wa_attachment: whatsapp.Attachment):
+    def convert(
+        wa_attachment: whatsapp.Attachment, muc: Optional["MUC"] = None
+    ) -> "Attachment":
         return Attachment(
             content_type=wa_attachment.MIME,
             data=bytes(wa_attachment.Data),
-            caption=wa_attachment.Caption,
+            caption=wa_attachment.Caption
+            if muc is None
+            else muc.replace_mentions(wa_attachment.Caption),
             name=wa_attachment.Filename,
         )
 
