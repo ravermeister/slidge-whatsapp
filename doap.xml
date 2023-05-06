@@ -67,7 +67,7 @@
         </implements>
         <implements>
             <xmpp:SupportedXep>
-                <xmpp:xep rdf:resource="https://xmpp.org/extensions/xep-0256.html" />
+                <xmpp:xep rdf:resource="https://xmpp.org/extensions/xep-0319.html" />
                 <xmpp:status>complete</xmpp:status>
                  <xmpp:note>Only available if you chose to share your presence info in the Whatsapp app.</xmpp:note>
             </xmpp:SupportedXep>

@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: 5ac5e6f
+_commit: 36e0426
 _src_path: git+https://git.sr.ht/~nicoco/slidge-template
 author: deuill
 author_email: alex@deuill.org
@@ -30,7 +30,7 @@ xeps:
     status: complete
 -   note: Only available if you chose to share your presence info in the Whatsapp
         app.
-    number: 256
+    number: 319
     status: complete
 -   note: null
     number: 308
