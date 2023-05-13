@@ -28,26 +28,26 @@ COPY ./slidge_whatsapp/*.py /venv/lib/python/site-packages/legacy_module/
 COPY --from=go /build/generated /venv/lib/python/site-packages/legacy_module/generated
 
 # dev container
-FROM builder AS dev
+FROM go AS dev
 
 USER root
 
-COPY --from=docker.io/nicocool84/slidge-dev-prosody:latest /etc/prosody/certs/localhost.crt /usr/local/share/ca-certificates/
+COPY --from=docker.io/nicocool84/slidge-prosody-dev:latest /etc/prosody/certs/localhost.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 
 RUN pip install watchdog[watchmedo]
 ENV SLIDGE_LEGACY_MODULE=slidge_whatsapp
-#RUN ln -s /venv/lib/python3.11 /venv/lib/python
 
 COPY ./watcher.py /
 
-ENTRYPOINT python3 /build/build.py && python \
+ENTRYPOINT python \
   /watcher.py \
   /venv/lib/python/site-packages/slidge_whatsapp \
   python -m slidge\
   --jid slidge.localhost\
   --secret secret \
-  --debug
+  --debug \
+  --upload-service upload.localhost
 
 # wheel builder
 # docker buildx build . --target wheel \
