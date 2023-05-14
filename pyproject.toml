@@ -26,7 +26,7 @@ pybindgen = "^0.22.1"
 
 [tool.poetry.dependencies.slidge]
 git = "https://git.sr.ht/~nicoco/slidge"
-branch = "split"
+branch = "master"
 
 [[tool.poetry.source]]
 name = "slidge-repo"
