@@ -5,6 +5,7 @@ from os import remove
 from os.path import basename
 from re import search
 from shelve import open
+from threading import Lock
 from typing import Optional, Union
 
 from linkpreview import Link, LinkPreview
@@ -65,6 +66,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SetEventHandler(self._handle_event)
         self._connected = self.xmpp.loop.create_future()
         self.user_phone: Optional[str] = None
+        self._lock = Lock()
 
     def shutdown(self):
         for c in self.contacts:
@@ -130,11 +132,13 @@ class Session(BaseSession[str, Recipient]):
         elif event == whatsapp.EventChatState:
             await self.handle_chat_state(data.ChatState)
         elif event == whatsapp.EventReceipt:
-            await self.handle_receipt(data.Receipt)
+            with self._lock:
+                await self.handle_receipt(data.Receipt)
         elif event == whatsapp.EventCall:
             await self.handle_call(data.Call)
         elif event == whatsapp.EventMessage:
-            await self.handle_message(data.Message)
+            with self._lock:
+                await self.handle_message(data.Message)
 
     async def handle_chat_state(self, state: whatsapp.ChatState):
         contact = await self.get_contact_or_participant(state.JID, state.GroupJID)
