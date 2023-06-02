@@ -5,6 +5,7 @@ from os import remove
 from os.path import basename
 from re import search
 from shelve import open
+from threading import Lock
 from typing import Optional, Union
 
 from linkpreview import Link, LinkPreview
@@ -65,6 +66,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SetEventHandler(self._handle_event)
         self._connected = self.xmpp.loop.create_future()
         self.user_phone: Optional[str] = None
+        self._lock = Lock()
 
     def shutdown(self):
         for c in self.contacts:
@@ -103,6 +105,10 @@ class Session(BaseSession[str, Recipient]):
         Handle incoming event, as propagated by the WhatsApp adapter. Typically, events carry all
         state required for processing by the Gateway itself, and will do minimal processing themselves.
         """
+        with self._lock:
+            await self.__handle_event(event, ptr)
+
+    async def __handle_event(self, event, ptr):
         data = whatsapp.EventPayload(handle=ptr)
         if event == whatsapp.EventQRCode:
             self.send_gateway_status("QR Scan Needed", show="dnd")
