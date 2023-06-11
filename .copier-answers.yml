@@ -35,7 +35,8 @@ xeps:
 -   note: null
     number: 308
     status: planned
--   note: Displayed and received markers are supported.
+-   note: Displayed and received markers are supported. In groups, you only get markers
+        for messages you have sent, just like in official WA clients.
     number: 333
     status: complete
 -   note: null
