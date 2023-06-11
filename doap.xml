@@ -83,7 +83,7 @@
             <xmpp:SupportedXep>
                 <xmpp:xep rdf:resource="https://xmpp.org/extensions/xep-0333.html" />
                 <xmpp:status>complete</xmpp:status>
-                 <xmpp:note>Displayed and received markers are supported.</xmpp:note>
+                 <xmpp:note>Displayed and received markers are supported. In groups, you only get markers for messages you have sent, just like in official WA clients.</xmpp:note>
             </xmpp:SupportedXep>
         </implements>
         <implements>

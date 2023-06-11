@@ -10,8 +10,7 @@ secrets:
   - dc710d9d-8043-4e1d-9837-b35bfa02800a
 artifacts:
   - ./docs.tar.gz
-  - ./package.tar.gz
-  - ./package.whl
+  - ./package.tar
 tasks:
   - install-poetry: |
       curl -sSL https://install.python-poetry.org | python3 -
@@ -25,8 +24,7 @@ tasks:
       poetry run c3p0 slidge-whatsapp
       poetry run set_version
       poetry build
-      cp dist/*.tar.gz ~/package.tar.gz
-      cp dist/*.whl ~/package.whl
+      tar cvf ~/package.tar dist/*
   - tests: |
       cd slidge-whatsapp
       poetry run ruff .
@@ -41,7 +39,6 @@ tasks:
       tar cvzf ~/docs.tar.gz .
   - publish: |
       if [ -z "$PYPI" ]; then
-        echo Not on master, not publishing
         exit
       fi
 
