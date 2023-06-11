@@ -1,7 +1,6 @@
 from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
-from os import remove
 from os.path import basename
 from re import search
 from shelve import open
@@ -68,11 +67,6 @@ class Session(BaseSession[str, Recipient]):
         self.user_phone: Optional[str] = None
         self._lock = Lock()
 
-    def shutdown(self):
-        for c in self.contacts:
-            c.offline()
-        self.xmpp.loop.create_task(self.disconnect())
-
     async def login(self):
         """
         Initiate login process and connect session to WhatsApp. Depending on existing state, login
@@ -84,15 +78,6 @@ class Session(BaseSession[str, Recipient]):
         return await self._connected
 
     async def logout(self):
-        """
-        Logout from the active WhatsApp session. This will also force a remote log-out, and thus
-        require pairing on next login. For simply disconnecting the active session, look at the
-        :meth:`.Session.disconnect` function.
-        """
-        self.whatsapp.Logout()
-        remove(self.user_shelf_path)
-
-    async def disconnect(self):
         """
         Disconnect the active WhatsApp session. This will not remove any local or remote state, and
         will thus allow previously authenticated sessions to re-authenticate without needing to pair.
