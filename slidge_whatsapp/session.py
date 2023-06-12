@@ -208,7 +208,7 @@ class Session(BaseSession[str, Recipient]):
         other aspects such as references to other messages for the purposes of quoting or correction.
         """
         contact = await self.get_contact_or_participant(message.JID, message.GroupJID)
-        muc = getattr(contact, "MUC", None)
+        muc = getattr(contact, "muc", None)
         reply_to = await self._get_reply_to(message, muc)
         message_timestamp = (
             datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
