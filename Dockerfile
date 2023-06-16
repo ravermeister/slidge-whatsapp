@@ -1,11 +1,10 @@
-FROM docker.io/nicocool84/slidge-builder AS base
-
-ENV GOBIN="/usr/local/bin"
+FROM docker.io/nicocool84/slidge-builder AS builder-base
 
 RUN echo "deb http://deb.debian.org/debian bullseye-backports main" > /etc/apt/sources.list.d/backports.list && \
     apt update -y && \
     apt install -yt bullseye-backports golang
 
+ENV GOBIN="/usr/local/bin"
 RUN go install github.com/go-python/gopy@latest
 RUN go install golang.org/x/tools/cmd/goimports@latest
 
@@ -15,22 +14,16 @@ COPY poetry.lock pyproject.toml /build/
 RUN poetry export --without-hashes > requirements.txt
 RUN python3 -m pip install --requirement requirements.txt
 
-FROM base as go
-COPY go.* .
-COPY slidge_whatsapp/*.go .
-RUN gopy build -output=generated -no-make=true .
+COPY ./slidge_whatsapp/*.go ./slidge_whatsapp/go.* /build/
+RUN gopy build -output=generated -no-make=true /build/
 
-# main container
 FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
 
-COPY --from=base /venv /venv
+COPY --from=builder-base /venv /venv
 COPY ./slidge_whatsapp/*.py /venv/lib/python/site-packages/legacy_module/
-COPY --from=go /build/generated /venv/lib/python/site-packages/legacy_module/generated
+COPY --from=builder-base /build/generated /venv/lib/python/site-packages/legacy_module/generated
 
-# dev container
-FROM go AS dev
-
-USER root
+FROM builder-base AS slidge-whatsapp-dev
 
 COPY --from=docker.io/nicocool84/slidge-prosody-dev:latest /etc/prosody/certs/localhost.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
@@ -39,21 +32,15 @@ RUN pip install watchdog[watchmedo]
 ENV SLIDGE_LEGACY_MODULE=slidge_whatsapp
 
 COPY ./watcher.py /
+USER root
 
-ENTRYPOINT python \
-  /watcher.py \
-  /venv/lib/python/site-packages/slidge_whatsapp \
-  python -m slidge\
-  --jid slidge.localhost\
-  --secret secret \
-  --debug \
-  --upload-service upload.localhost
+ENTRYPOINT ["python", "/watcher.py", "/venv/lib/python/site-packages/slidge_whatsapp"]
 
 # wheel builder
 # docker buildx build . --target wheel \
 # --platform linux/arm64,linux/amd64 \
 # -o ./dist/
-FROM base AS builder-wheel
+FROM builder-base AS builder-wheel
 
 RUN pip install pybindgen
 COPY go.* /build/

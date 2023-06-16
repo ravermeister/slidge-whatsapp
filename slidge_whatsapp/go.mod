@@ -3,10 +3,10 @@ module git.sr.ht/~nicoco/slidge/slidge/plugins/whatsapp
 go 1.19
 
 require (
-	github.com/go-python/gopy v0.4.5
-	github.com/mattn/go-sqlite3 v1.14.16
+	github.com/go-python/gopy v0.4.7
+	github.com/mattn/go-sqlite3 v1.14.17
 	go.mau.fi/libsignal v0.1.0
-	go.mau.fi/whatsmeow v0.0.0-20230610124725-5dd0baf43eda
+	go.mau.fi/whatsmeow v0.0.0-20230614142319-2114a3c181bd
 )
 
 require (

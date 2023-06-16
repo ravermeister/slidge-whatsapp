@@ -3,7 +3,12 @@ services:
   slidge:
     build:
       context: .
-      target: dev
+      target: slidge-whatsapp-dev
+    command:
+     - --jid=slidge.localhost
+     - --secret=secret
+     - --upload-service=upload.localhost
+     - --debug
     network_mode: service:prosody
     volumes:
       - ./slidge_whatsapp:/venv/lib/python/site-packages/slidge_whatsapp
