@@ -1,6 +1,6 @@
-module git.sr.ht/~nicoco/slidge/slidge/plugins/whatsapp
+module git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp
 
-go 1.19
+go 1.20
 
 require (
 	github.com/go-python/gopy v0.4.7
