@@ -17,7 +17,6 @@ import (
 // Go session adapter.
 type EventKind int
 
-
 // The event types handled by the overarching session adapter handler.
 const (
 	EventUnknown EventKind = iota
@@ -258,6 +257,7 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 		message.GetAudioMessage(),
 		message.GetVideoMessage(),
 		message.GetDocumentMessage(),
+		message.GetStickerMessage(),
 	}
 
 	for _, msg := range kinds {
@@ -272,6 +272,8 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 			a.MIME, a.Caption = msg.GetMimetype(), msg.GetCaption()
 		case *proto.DocumentMessage:
 			a.MIME, a.Caption, a.Filename = msg.GetMimetype(), msg.GetCaption(), msg.GetFileName()
+		case *proto.StickerMessage:
+			a.MIME = msg.GetMimetype()
 		}
 
 		// Ignore attachments with empty or unknown MIME types.
