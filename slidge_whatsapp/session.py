@@ -2,6 +2,7 @@ from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
 from os.path import basename
+from pathlib import Path
 from re import search
 from shelve import open
 from threading import Lock
@@ -228,13 +229,22 @@ class Session(BaseSession[str, Recipient]):
                 carbon=message.IsCarbon,
             )
         elif message.Kind == whatsapp.MessageAttachment:
+            attachments = Attachment.convert_list(message.Attachments, muc)
             await contact.send_files(
-                attachments=Attachment.convert_list(message.Attachments, muc),
+                attachments=attachments,
                 legacy_msg_id=message.ID,
                 reply_to=reply_to,
                 when=message_timestamp,
                 carbon=message.IsCarbon,
             )
+            for attachment in attachments:
+                # when the path attribute is set, it means we're writing to
+                # disk instead of passing bytes through RAM, as a workaround
+                # for the massive perf issue, cf
+                # https://github.com/go-python/gopy/issues/323
+                if p := attachment.path:
+                    self.log.debug("Removing '%s' from disk", p)
+                    Path(p).unlink()
         elif message.Kind == whatsapp.MessageRevoke:
             contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
         elif message.Kind == whatsapp.MessageReaction:
@@ -409,7 +419,8 @@ class Attachment(LegacyAttachment):
     ) -> "Attachment":
         return Attachment(
             content_type=wa_attachment.MIME,
-            data=bytes(wa_attachment.Data),
+            data=bytes(wa_attachment.Data) if wa_attachment.Data else None,
+            path=wa_attachment.Path if wa_attachment.Path else None,
             caption=wa_attachment.Caption
             if muc is None
             else muc.replace_mentions(wa_attachment.Caption),

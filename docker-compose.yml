@@ -17,6 +17,8 @@ services:
     depends_on:
       prosody:
         condition: service_started
+    environment:
+      SLIDGE_WA_ATTACHMENTS_ON_DISK: "1"
 
   prosody:
     image: docker.io/nicocool84/slidge-prosody-dev:latest
