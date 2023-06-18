@@ -40,6 +40,7 @@ For the bleeding edge, download artifacts of
 ## Dev
 
 ```sh
+git clone https://git.sr.ht/~nicoco/slidge
 git clone https://git.sr.ht/~nicoco/slidge-whatsapp
 cd slidge-whatsapp
 docker-compose up

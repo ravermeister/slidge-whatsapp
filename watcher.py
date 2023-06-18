@@ -27,14 +27,16 @@ if __name__ == "__main__":
     )
 
     path = sys.argv[1] if len(sys.argv) > 1 else "."
-    observer.schedule(auto_restart, path, recursive=True)
-    observer.schedule(gopy_build, path, recursive=True)
+    for p in path.split(":"):
+        observer.schedule(auto_restart, p, recursive=True)
+        observer.schedule(gopy_build, p, recursive=True)
     observer.start()
 
     try:
-        for dirpath, _, filenames in os.walk(path):
-            if "go.mod" in filenames:
-                subprocess.run(gopy_cmd, shell=True, cwd=dirpath)
+        for p in path.split(":"):
+            for dirpath, _, filenames in os.walk(p):
+                if "go.mod" in filenames:
+                    subprocess.run(gopy_cmd, shell=True, cwd=dirpath)
         auto_restart.start()
         while observer.is_alive():
             observer.join(1)

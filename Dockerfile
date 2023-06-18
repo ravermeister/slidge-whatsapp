@@ -34,7 +34,7 @@ ENV SLIDGE_LEGACY_MODULE=slidge_whatsapp
 COPY ./watcher.py /
 USER root
 
-ENTRYPOINT ["python", "/watcher.py", "/venv/lib/python/site-packages/slidge_whatsapp"]
+ENTRYPOINT ["python", "/watcher.py", "/venv/lib/python/site-packages/slidge:/venv/lib/python/site-packages/slidge_whatsapp"]
 
 # wheel builder
 # docker buildx build . --target wheel \
