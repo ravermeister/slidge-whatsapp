@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"mime"
+	"os"
 
 	// Third-party libraries.
 	"go.mau.fi/whatsmeow"
@@ -144,8 +145,9 @@ type Attachment struct {
 	MIME     string // The MIME type for attachment.
 	Filename string // The recommended file name for this attachment. May be an auto-generated name.
 	Caption  string // The user-provided caption, provided alongside this attachment.
-	Data     []byte // The raw binary data for this attachment. Mutually exclusive with [.URL].
-	URL      string // The URL to download attachment data from. Mutually exclusive with [.Data].
+	Path     string // Local path to the file is stored on disk. Mutually exclusive with [.Data, .URL]
+	Data     []byte // The raw binary data for this attachment. Mutually exclusive with [.URL, .Path].
+	URL      string // The URL to download attachment data from. Mutually exclusive with [.Path, .Data]
 }
 
 // A Preview represents a short description for a URL provided in a message body, as usually derived
@@ -301,7 +303,18 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 			return nil, err
 		}
 
-		a.Data = data
+		f, err := os.CreateTemp("", "slidge-whatsapp-*")
+		if err != nil {
+			client.Log.Errorf("Failed to create a temporary file: %s", err)
+			return nil, err
+		}
+		defer f.Close()
+		_, err = f.Write(data)
+		if err != nil {
+			client.Log.Errorf("Failed to write to the temporary file: %s", err)
+			return nil, err
+		}
+		a.Path = f.Name()
 		result = append(result, a)
 	}
 
