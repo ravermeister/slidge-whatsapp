@@ -235,6 +235,14 @@ class Session(BaseSession[str, Recipient]):
                 when=message_timestamp,
                 carbon=message.IsCarbon,
             )
+        elif message.Kind == whatsapp.MessageEdit:
+            contact.correct(
+                legacy_msg_id=message.ID,
+                new_text=message.Body,
+                when=message_timestamp,
+                reply_to=reply_to,
+                carbon=message.IsCarbon,
+            )
         elif message.Kind == whatsapp.MessageRevoke:
             contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
         elif message.Kind == whatsapp.MessageReaction:
@@ -369,7 +377,13 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SendMessage(message)
 
     async def correct(self, c: Recipient, text: str, legacy_msg_id: str, thread=None):
-        pass
+        """
+        Request correction (aka editing) for a given WhatsApp message.
+        """
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageEdit, ID=legacy_msg_id, JID=c.legacy_id, Body=text
+        )
+        self.whatsapp.SendMessage(message)
 
     async def search(self, form_values: dict[str, str]):
         self.send_gateway_message("Searching on WhatsApp has not been implemented yet.")

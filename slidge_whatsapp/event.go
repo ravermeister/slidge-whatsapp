@@ -114,6 +114,7 @@ type MessageKind int
 // The message types handled by the overarching session event handler.
 const (
 	MessagePlain MessageKind = 1 + iota
+	MessageEdit
 	MessageRevoke
 	MessageReaction
 	MessageAttachment
@@ -186,6 +187,14 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	// Handle handle protocol messages (such as message deletion or editing).
 	if p := evt.Message.GetProtocolMessage(); p != nil {
 		switch p.GetType() {
+		case proto.ProtocolMessage_MESSAGE_EDIT:
+			if m := p.GetEditedMessage(); m != nil {
+				message.Kind = MessageEdit
+				message.ID = p.Key.GetId()
+				message.Body = m.GetConversation()
+			} else {
+				return EventUnknown, nil
+			}
 		case proto.ProtocolMessage_REVOKE:
 			message.Kind = MessageRevoke
 			message.ID = p.Key.GetId()

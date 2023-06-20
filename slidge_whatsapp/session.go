@@ -162,6 +162,9 @@ func (s *Session) SendMessage(message Message) error {
 			return fmt.Errorf("Failed uploading attachment: %s", err)
 		}
 		extra.ID = message.ID
+	case MessageEdit:
+		// Edit existing message by ID.
+		payload = s.client.BuildEdit(s.device.JID().ToNonAD(), message.ID, s.getMessagePayload(message))
 	case MessageRevoke:
 		// Don't send message, but revoke existing message by ID.
 		payload = s.client.BuildRevoke(s.device.JID().ToNonAD(), types.EmptyJID, message.ID)
@@ -180,51 +183,61 @@ func (s *Session) SendMessage(message Message) error {
 			},
 		}
 	default:
-		// Compose extended message when made as a reply to a different message, otherwise compose
-		// plain-text message for body given for all other message kinds.
-		if message.ReplyID != "" {
-			// Fall back to our own JID if no origin JID has been specified, in which case we assume
-			// we're replying to our own messages.
-			if message.OriginJID == "" {
-				message.OriginJID = s.device.JID().ToNonAD().String()
-			}
-			payload = &proto.Message{
-				ExtendedTextMessage: &proto.ExtendedTextMessage{
-					Text: &message.Body,
-					ContextInfo: &proto.ContextInfo{
-						StanzaId:      &message.ReplyID,
-						QuotedMessage: &proto.Message{Conversation: ptrTo(message.ReplyBody)},
-						Participant:   &message.OriginJID,
-					},
-				},
-			}
-		}
-		// Add URL preview, if any was given in message.
-		if message.Preview.URL != "" {
-			if payload == nil {
-				payload = &proto.Message{
-					ExtendedTextMessage: &proto.ExtendedTextMessage{Text: &message.Body},
-				}
-			}
-			payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
-			payload.ExtendedTextMessage.Title = &message.Preview.Title
-			if url := message.Preview.ImageURL; url != "" {
-				if buf, err := getFromURL(s.gateway.httpClient, url); err == nil {
-					payload.ExtendedTextMessage.JpegThumbnail = buf
-				}
-			} else if len(message.Preview.ImageData) > 0 {
-				payload.ExtendedTextMessage.JpegThumbnail = message.Preview.ImageData
-			}
-		}
-		if payload == nil {
-			payload = &proto.Message{Conversation: &message.Body}
-		}
+		payload = s.getMessagePayload(message)
 		extra.ID = message.ID
 	}
 
 	s.gateway.logger.Debugf("Sending message to JID '%s': %+v", jid, payload)
 	_, err = s.client.SendMessage(context.Background(), jid, payload, extra)
 	return err
+}
+
+// GetMessagePayload returns a concrete WhatsApp protocol message for the given Message representation.
+// The specific fields set within the protocol message, as well as its type, can depend on specific
+// fields set in the Message type, and may be nested recursively (e.g. when replying to a reply).
+func (s *Session) getMessagePayload(message Message) *proto.Message {
+	var payload *proto.Message
+
+	// Compose extended message when made as a reply to a different message.
+	if message.ReplyID != "" {
+		// Fall back to our own JID if no origin JID has been specified, in which case we assume
+		// we're replying to our own messages.
+		if message.OriginJID == "" {
+			message.OriginJID = s.device.JID().ToNonAD().String()
+		}
+		payload = &proto.Message{
+			ExtendedTextMessage: &proto.ExtendedTextMessage{
+				Text: &message.Body,
+				ContextInfo: &proto.ContextInfo{
+					StanzaId:      &message.ReplyID,
+					QuotedMessage: &proto.Message{Conversation: ptrTo(message.ReplyBody)},
+					Participant:   &message.OriginJID,
+				},
+			},
+		}
+	}
+
+	// Add URL preview, if any was given in message.
+	if message.Preview.URL != "" {
+		if payload == nil {
+			payload = &proto.Message{ExtendedTextMessage: &proto.ExtendedTextMessage{Text: &message.Body}}
+		}
+		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
+		payload.ExtendedTextMessage.Title = &message.Preview.Title
+		if url := message.Preview.ImageURL; url != "" {
+			if buf, err := getFromURL(s.gateway.httpClient, url); err == nil {
+				payload.ExtendedTextMessage.JpegThumbnail = buf
+			}
+		} else if len(message.Preview.ImageData) > 0 {
+			payload.ExtendedTextMessage.JpegThumbnail = message.Preview.ImageData
+		}
+	}
+
+	if payload == nil {
+		payload = &proto.Message{Conversation: &message.Body}
+	}
+
+	return payload
 }
 
 // SendChatState sends the given chat state notification (e.g. composing message) to WhatsApp for the
