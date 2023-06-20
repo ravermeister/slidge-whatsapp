@@ -117,9 +117,13 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
         self.__filled = True
 
     async def add_whatsapp_group(self, data: whatsapp.Group):
+        self.log.debug("HERE Getting Legacy ID %s", data.JID)
         muc = await self.by_legacy_id(data.JID)
+        self.log.debug("HERE Updating WhatsApp Info ID %s", data.JID)
         await muc.update_whatsapp_info(data)
+        self.log.debug("HERE Adding to bookmarks ID %s", data.JID)
         await muc.add_to_bookmarks()
+        self.log.debug("HERE Finished ID %s", data.JID)
 
     async def legacy_id_to_jid_local_part(self, legacy_id: str):
         return "#" + legacy_id[: legacy_id.find("@")]
