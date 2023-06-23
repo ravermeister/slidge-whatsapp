@@ -7,7 +7,7 @@ author_website: https://deuill.org
 dockerhub_username: nicocool84
 legacy_lib: whatsmeow
 legacy_lib_website: https://github.com/tulir/whatsmeow
-legacy_service: Whatsapp
+legacy_service: WhatsApp
 legacy_service_website: https://whatsapp.com
 module_name: slidge_whatsapp
 project_name: slidge-whatsapp
@@ -18,25 +18,27 @@ srht_secret_pypi: 3ecea679-dec7-4ac0-8821-75d0f4fe0773
 srht_username: nicoco
 xeps:
 -   note: Participating in groups work, but creation/deletion/moderation is not yet
-        possible from slidge.
+        possible from Slidge.
     number: 45
     status: partial
 -   note: Typing notifications only.
     number: 85
     status: complete
--   note: Whatsapp has proper recipient-generated delivery receipts, and slidge supports
+-   note: WhatApp has proper recipient-generated delivery receipts, and slidge supports
         them.
     number: 184
     status: complete
--   note: Only available if you chose to share your presence info in the Whatsapp
-        app.
+-   note: Only available if you chose to share your presence info in the official WhatsApp
+        client.
     number: 319
     status: complete
--   note: null
+-   note: Sending and receiving message edits is only
+        supported in the latest versions of the official WhatsApp
+        clients.
     number: 308
-    status: planned
+    status: complete
 -   note: Displayed and received markers are supported. In groups, you only get markers
-        for messages you have sent, just like in official WA clients.
+        for messages you have sent, just like in official WhatsApp clients.
     number: 333
     status: complete
 -   note: null
