@@ -1,8 +1,14 @@
 # slidge-whatsapp
 
+[Home](https://sr.ht/~nicoco/slidge) |
+[Docs](https://slidge.im/slidge-whatsapp) |
+[Issues](https://sr.ht/~nicoco/slidge/slidge-whatsapp) |
+[Patches](https://lists.sr.ht/~nicoco/public-inbox) |
+[Chat](xmpp:slidge@conference.nicoco.fr?join)
+
 A
 [feature-rich](https://slidge.im/slidge-whatsapp/features.html)
-[Whatsapp](https://whatsapp.com) to
+[WhatsApp](https://whatsapp.com) to
 [XMPP](https://xmpp.org/) puppeteering
 [gateway](https://xmpp.org/extensions/xep-0100.html), based on
 [slidge](https://slidge.im) and
