@@ -250,6 +250,10 @@ class Session(BaseSession[str, Recipient]):
             contact.react(
                 legacy_msg_id=message.ID, emojis=emojis, carbon=message.IsCarbon
             )
+        for ptr in message.Receipts:
+            await self.handle_receipt(whatsapp.Receipt(handle=ptr))
+        for ptr in message.Reactions:
+            await self.handle_message(whatsapp.Message(handle=ptr))
 
     async def send_text(
         self,

@@ -417,7 +417,7 @@ func (s *Session) handleEvent(evt interface{}) {
 	case *events.HistorySync:
 		switch evt.Data.GetSyncType() {
 		case proto.HistorySync_PUSH_NAME:
-			for _, n := range evt.Data.Pushnames {
+			for _, n := range evt.Data.GetPushnames() {
 				jid, err := types.ParseJID(n.GetId())
 				if err != nil {
 					continue
@@ -425,6 +425,12 @@ func (s *Session) handleEvent(evt interface{}) {
 				s.propagateEvent(newContactEvent(s.client, jid, types.ContactInfo{FullName: n.GetPushname()}))
 				if err = s.client.SubscribePresence(jid); err != nil {
 					s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
+				}
+			}
+		case proto.HistorySync_INITIAL_BOOTSTRAP, proto.HistorySync_RECENT, proto.HistorySync_FULL:
+			for _, c := range evt.Data.GetConversations() {
+				for _, msg := range c.GetMessages() {
+					s.propagateEvent(newEventFromHistory(s.client, msg.GetMessage()))
 				}
 			}
 		}
