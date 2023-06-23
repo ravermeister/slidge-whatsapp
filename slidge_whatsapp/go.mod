@@ -6,7 +6,7 @@ require (
 	github.com/go-python/gopy v0.4.7
 	github.com/mattn/go-sqlite3 v1.14.17
 	go.mau.fi/libsignal v0.1.0
-	go.mau.fi/whatsmeow v0.0.0-20230616194828-be0edabb0bf3
+	go.mau.fi/whatsmeow v0.0.0-20230621213630-12cd3cdb2257
 )
 
 require (
