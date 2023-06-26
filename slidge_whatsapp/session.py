@@ -237,6 +237,9 @@ class Session(BaseSession[str, Recipient]):
                 when=message_timestamp,
                 carbon=message.IsCarbon,
             )
+            if global_config.NO_UPLOAD_METHOD == "move":
+                # can't remove files that have been moved
+                return
             for attachment in attachments:
                 # when the path attribute is set, it means we're writing to
                 # disk instead of passing bytes through RAM, as a workaround
