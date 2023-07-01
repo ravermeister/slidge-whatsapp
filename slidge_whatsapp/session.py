@@ -187,8 +187,25 @@ class Session(BaseSession[str, Recipient]):
         url = match.group("url")
         async with self.http.get(url) as resp:
             if resp.status != 200:
+                self.log.debug(
+                    "Could not generate a preview for %s because response status was %s",
+                    url,
+                    resp.status,
+                )
                 return None
-            preview = LinkPreview(Link(url, await resp.text()))
+            if resp.content_type != "text/html":
+                self.log.debug(
+                    "Could not generate a preview for %s because content type is %s",
+                    url,
+                    resp.content_type,
+                )
+                return None
+            try:
+                html = await resp.text()
+            except UnicodeDecodeError as e:
+                self.log.debug("Could not generate a preview for %s", url, exc_info=e)
+                return None
+            preview = LinkPreview(Link(url, html))
             if not preview.title:
                 return None
             try:
