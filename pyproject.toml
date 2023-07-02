@@ -23,6 +23,7 @@ script = "build.py"
 python = "^3.9"
 linkpreview = "^0.6.5"
 pybindgen = "^0.22.1"
+pillow = "^10.0.0"
 
 [tool.poetry.dependencies.slidge]
 git = "https://git.sr.ht/~nicoco/slidge"
@@ -45,6 +46,7 @@ furo = "^2023.3.27"
 sphinx-autoapi = "^2.1.0"
 sphinx-argparse = "^0.4.0"
 sphinx-mdinclude = "^0.5.3"
+types-pillow = "^9.5.0.5"
 
 [tool.poetry.group.dev.dependencies.slidge-dev-helpers]
 git = "https://git.sr.ht/~nicoco/slidge-dev-helpers"
