@@ -19,6 +19,10 @@ RUN gopy build -output=generated -no-make=true /build/
 
 FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
 
+USER root
+RUN apt update -y && apt install ffmpeg mediainfo -y
+
+USER slidge
 COPY --from=builder-base /venv /venv
 COPY ./slidge_whatsapp/*.py /venv/lib/python/site-packages/legacy_module/
 COPY --from=builder-base /build/generated /venv/lib/python/site-packages/legacy_module/generated
@@ -33,6 +37,7 @@ ENV SLIDGE_LEGACY_MODULE=slidge_whatsapp
 
 COPY ./watcher.py /
 USER root
+RUN apt update -y && apt install ffmpeg mediainfo -y
 
 ENTRYPOINT ["python", "/watcher.py", "/venv/lib/python/site-packages/slidge:/venv/lib/python/site-packages/slidge_whatsapp"]
 

@@ -324,10 +324,11 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 // KnownMediaTypes represents MIME type to WhatsApp media types known to be handled by WhatsApp in a
 // special way (that is, not as generic file uploads).
 var knownMediaTypes = map[string]whatsmeow.MediaType{
-	"image/jpeg":      whatsmeow.MediaImage,
-	"audio/ogg":       whatsmeow.MediaAudio,
-	"application/ogg": whatsmeow.MediaAudio,
-	"video/mp4":       whatsmeow.MediaVideo,
+	"image/jpeg":            whatsmeow.MediaImage,
+	"audio/ogg":             whatsmeow.MediaAudio,
+	"audio/ogg; codec=opus": whatsmeow.MediaAudio,
+	"application/ogg":       whatsmeow.MediaAudio,
+	"video/mp4":             whatsmeow.MediaVideo,
 }
 
 // UploadAttachment attempts to push the given attachment data to WhatsApp according to the MIME type
@@ -368,6 +369,7 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 				FileEncSha256: upload.FileEncSHA256,
 				FileSha256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(attach.Data))),
+				// May need the Ptt field? cf https://github.com/tulir/whatsmeow/discussions/213
 			},
 		}
 	case whatsmeow.MediaVideo:

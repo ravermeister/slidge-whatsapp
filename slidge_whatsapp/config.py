@@ -28,3 +28,17 @@ ENABLE_LINK_PREVIEWS = True
 ENABLE_LINK_PREVIEWS__DOC = (
     "Whether or not previews for links (URLs) should be generated on outgoing messages"
 )
+
+CONVERT_MEDIA = True
+CONVERT_MEDIA__DOC = (
+    "Convert XMPP to WhatsApp media to get inline preview in WhatsApp clients."
+)
+
+CONVERT_MEDIA_THREADS = 4
+CONVERT_MEDIA_THREADS__DOC = "Size of the media conversion thread pool."
+
+CONVERT_RGBA = True
+CONVERT_RGBA__DOC = (
+    "Convert images with alpha channel to JPEG to get inline previews in WhatsApp"
+    "clients, losing the alpha channel content in the process"
+)

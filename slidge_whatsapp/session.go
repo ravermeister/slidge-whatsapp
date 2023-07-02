@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"runtime"
 	"time"
 
@@ -143,8 +144,16 @@ func (s *Session) SendMessage(message Message) error {
 			return nil
 		}
 
-		// Attempt to download attachment data if URL is set.
-		if url := message.Attachments[0].URL; url != "" {
+		// Use local path if given (likely media conversion)
+		if path := message.Attachments[0].Path; path != "" {
+			if buf, err := os.ReadFile(message.Attachments[0].Path); err != nil {
+				return fmt.Errorf("Failed downloading attachment: %s", err)
+			} else {
+				message.Attachments[0].Data = buf
+				os.Remove(message.Attachments[0].Path)
+			}
+			// Attempt to download attachment data if URL is set.
+		} else if url := message.Attachments[0].URL; url != "" {
 			if buf, err := getFromURL(s.gateway.httpClient, url); err != nil {
 				return fmt.Errorf("Failed downloading attachment: %s", err)
 			} else {

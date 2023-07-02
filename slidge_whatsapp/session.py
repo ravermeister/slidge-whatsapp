@@ -1,13 +1,13 @@
 from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
-from os.path import basename
 from pathlib import Path
 from re import search
 from shelve import open
 from threading import Lock
 from typing import Optional, Union
 
+from aiohttp import ClientResponse
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, GatewayUser, global_config
 from slidge.core.contact.roster import ContactIsUser
@@ -307,7 +307,7 @@ class Session(BaseSession[str, Recipient]):
         self,
         chat: Recipient,
         url: str,
-        http_response,
+        http_response: ClientResponse,
         reply_to_msg_id: Optional[str] = None,
         reply_to_fallback_text: Optional[str] = None,
         reply_to=None,
@@ -317,14 +317,11 @@ class Session(BaseSession[str, Recipient]):
         Send outgoing media message (i.e. audio, image, document) to given WhatsApp contact.
         """
         message_id = whatsapp.GenerateMessageID()
-        message_attachment = whatsapp.Attachment(
-            MIME=http_response.content_type, Filename=basename(url), URL=url
-        )
+        message_attachment = await self.xmpp.media_converter.convert(url, http_response)
         message = whatsapp.Message(
             Kind=whatsapp.MessageAttachment,
             ID=message_id,
             JID=chat.legacy_id,
-            ReplyID=reply_to_msg_id if reply_to_msg_id else "",
             Attachments=whatsapp.Slice_whatsapp_Attachment([message_attachment]),
         )
         set_reply_to(chat, message, reply_to_msg_id, reply_to_fallback_text, reply_to)

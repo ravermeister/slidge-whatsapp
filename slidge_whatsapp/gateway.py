@@ -7,6 +7,7 @@ from slidge import BaseGateway, GatewayUser, global_config
 
 from . import config
 from .generated import whatsapp
+from .media import MediaConverter
 
 if TYPE_CHECKING:
     from .session import Session
@@ -46,6 +47,7 @@ class Gateway(BaseGateway):
         self.whatsapp.SkipVerifyTLS = config.SKIP_VERIFY_TLS
         self.whatsapp.Name = "Slidge on " + str(global_config.JID)
         self.whatsapp.Init()
+        self.media_converter = MediaConverter(self.loop)
 
     async def unregister(self, user: GatewayUser):
         """
