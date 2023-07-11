@@ -202,7 +202,7 @@ class Session(BaseSession[str, Recipient]):
                 return None
             try:
                 html = await resp.text()
-            except UnicodeDecodeError as e:
+            except Exception as e:
                 self.log.debug("Could not generate a preview for %s", url, exc_info=e)
                 return None
             preview = LinkPreview(Link(url, html))
