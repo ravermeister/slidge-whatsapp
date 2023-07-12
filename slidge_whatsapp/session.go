@@ -288,6 +288,21 @@ func (s *Session) SendReceipt(receipt Receipt) error {
 	return s.client.MarkRead(ids, time.Unix(receipt.Timestamp, 0), jid, senderJID)
 }
 
+// SendPresence changes the status (online/offline) of the web client
+func (s *Session) SendPresence(presence PresenceKind) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("Cannot send presence for unauthenticated session")
+	}
+
+	switch presence {
+	case PresenceAvailable:
+		return s.client.SendPresence(types.PresenceAvailable)
+	case PresenceUnavailable:
+		return s.client.SendPresence(types.PresenceUnavailable)
+	}
+	return nil
+}
+
 // GetContacts subscribes to the WhatsApp roster currently stored in the Session's internal state.
 // If `refresh` is `true`, FetchRoster will pull application state from the remote service and
 // synchronize any contacts found with the adapter.

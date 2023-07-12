@@ -436,6 +436,13 @@ type ChatState struct {
 	GroupJID string
 }
 
+type PresenceKind int
+
+const (
+	PresenceAvailable PresenceKind = 1 + iota
+	PresenceUnavailable
+)
+
 // NewChatStateEvent returns event data meant for [Session.propagateEvent] for the primitive
 // chat-state event given.
 func newChatStateEvent(evt *events.ChatPresence) (EventKind, *EventPayload) {
