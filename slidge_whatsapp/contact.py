@@ -15,13 +15,15 @@ class Contact(LegacyContact[str]):
     CORRECTION = True
     REACTIONS_SINGLE_EMOJI = True
 
-    async def update_presence(self, away: bool, last_seen_timestamp: int):
+    async def update_presence(
+        self, presence: whatsapp.PresenceKind, last_seen_timestamp: int
+    ):
         last_seen = (
             datetime.fromtimestamp(last_seen_timestamp, tz=timezone.utc)
             if last_seen_timestamp > 0
             else None
         )
-        if away:
+        if presence == whatsapp.PresenceUnavailable:
             self.away(last_seen=last_seen)
         else:
             self.online(last_seen=last_seen)

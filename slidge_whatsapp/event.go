@@ -90,22 +90,37 @@ func newContactEvent(c *whatsmeow.Client, jid types.JID, info types.ContactInfo)
 	return EventContact, &EventPayload{Contact: contact}
 }
 
+// PresenceKind represents the different kinds of activity states possible in WhatsApp.
+type PresenceKind int
+
+// The presences handled by the overarching session event handler.
+const (
+	PresenceAvailable PresenceKind = 1 + iota
+	PresenceUnavailable
+)
+
 // Precence represents a contact's general state of activity, and is periodically updated as
 // contacts start or stop paying attention to their client of choice.
 type Presence struct {
 	JID      string
-	Away     bool
+	Kind     PresenceKind
 	LastSeen int64
 }
 
 // NewPresenceEvent returns event data meant for [Session.propagateEvent] for the primitive presence
 // event given.
 func newPresenceEvent(evt *events.Presence) (EventKind, *EventPayload) {
-	return EventPresence, &EventPayload{Presence: Presence{
+	var presence = Presence{
 		JID:      evt.From.ToNonAD().String(),
-		Away:     evt.Unavailable,
+		Kind:     PresenceAvailable,
 		LastSeen: evt.LastSeen.Unix(),
-	}}
+	}
+
+	if evt.Unavailable {
+		presence.Kind = PresenceUnavailable
+	}
+
+	return EventPresence, &EventPayload{Presence: presence}
 }
 
 // MessageKind represents all concrete message types (plain-text messages, edit messages, reactions)
@@ -435,13 +450,6 @@ type ChatState struct {
 	JID      string
 	GroupJID string
 }
-
-type PresenceKind int
-
-const (
-	PresenceAvailable PresenceKind = 1 + iota
-	PresenceUnavailable
-)
 
 // NewChatStateEvent returns event data meant for [Session.propagateEvent] for the primitive
 // chat-state event given.
