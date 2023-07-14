@@ -40,11 +40,11 @@ class ChangePresence(Command):
                     ],
                 )
             ],
-            handler=self.finish,
+            handler=self.finish,  # type:ignore
         )
 
     @staticmethod
-    async def finish(form_values: dict[str, str], session: "Session", _ifrom: JID):
+    async def finish(form_values: dict, session: "Session", _ifrom: JID):
         p = form_values.get("presence")
         if p == "available":
             session.whatsapp.SendPresence(whatsapp.PresenceAvailable)
