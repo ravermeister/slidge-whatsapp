@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"runtime"
 	"time"
@@ -32,6 +33,13 @@ const (
 	// The minimum and maximum wait interval between connection retries after keep-alive check failure.
 	keepAliveMinRetryInterval = 5 * time.Second
 	keepAliveMaxRetryInterval = 5 * time.Minute
+
+	// The amount of time to wait before re-sending our current activity state to WhatsApp. This is
+	// required since otherwise WhatsApp will assume that you're inactive, and will stop sending
+	// presence updates for contacts and groups. By default, this interval has a jitter of ± half
+	// its value (e.g. for an initial interval of 2 hours, the final value will range from 1 to 3
+	// hours) in order to provide a more natural interaction with remote WhatsApp servers.
+	presenceRefreshInterval = 24 * time.Hour
 )
 
 // HandleEventFunc represents a handler for incoming events sent to the Python Session, accepting an
@@ -48,6 +56,7 @@ type Session struct {
 	eventHandler HandleEventFunc   // The event handler for the overarching Session.
 	client       *whatsmeow.Client // The concrete client connection to WhatsApp for this session.
 	gateway      *Gateway          // The Gateway this Session is attached to.
+	presenceChan chan PresenceKind // A channel used for periodically refreshing presence status.
 }
 
 // Login attempts to authenticate the given [Session], either by re-using the [LinkedDevice] attached
@@ -71,6 +80,29 @@ func (s *Session) Login() error {
 
 	s.client = whatsmeow.NewClient(store, s.gateway.logger)
 	s.client.AddEventHandler(s.handleEvent)
+
+	// Refresh our presence on a set interval, to avoid issues with WhatsApp dropping it entirely.
+	s.presenceChan = make(chan PresenceKind, 1)
+	go func() {
+		var newTimer = func(d time.Duration) *time.Timer {
+			return time.NewTimer(d + time.Duration(rand.Int63n(int64(d))-int64(d/2)))
+		}
+		var timer = newTimer(presenceRefreshInterval)
+		var presence = PresenceAvailable
+		for {
+			select {
+			case <-timer.C:
+				timer = newTimer(presenceRefreshInterval)
+				s.SendPresence(presence)
+			case p, ok := <-s.presenceChan:
+				if !ok {
+					timer.Stop()
+					return
+				}
+				presence = p
+			}
+		}
+	}()
 
 	// Simply connect our client if already registered.
 	if s.client.Store.ID != nil {
@@ -106,6 +138,7 @@ func (s *Session) Logout() error {
 
 	err := s.client.Logout()
 	s.client = nil
+	close(s.presenceChan)
 
 	return err
 }
@@ -115,6 +148,7 @@ func (s *Session) Disconnect() error {
 	if s.client != nil {
 		s.client.Disconnect()
 		s.client = nil
+		close(s.presenceChan)
 	}
 
 	return nil
@@ -288,11 +322,14 @@ func (s *Session) SendReceipt(receipt Receipt) error {
 	return s.client.MarkRead(ids, time.Unix(receipt.Timestamp, 0), jid, senderJID)
 }
 
-// SendPresence changes the status (online/offline) of the web client
+// SendPresence sets the activity status for the current session and user. An error is returned if
+// setting availability fails for any reason.
 func (s *Session) SendPresence(presence PresenceKind) error {
 	if s.client == nil || s.client.Store.ID == nil {
 		return fmt.Errorf("Cannot send presence for unauthenticated session")
 	}
+
+	s.presenceChan <- presence
 
 	switch presence {
 	case PresenceAvailable:
@@ -300,6 +337,7 @@ func (s *Session) SendPresence(presence PresenceKind) error {
 	case PresenceUnavailable:
 		return s.client.SendPresence(types.PresenceUnavailable)
 	}
+
 	return nil
 }
 
@@ -482,9 +520,8 @@ func (s *Session) handleEvent(evt interface{}) {
 		if evt.ErrorCount > keepAliveFailureThreshold {
 			s.gateway.logger.Debugf("Forcing reconnection after keep-alive timeouts...")
 			go func() {
-				s.client.Disconnect()
-
 				var interval = keepAliveMinRetryInterval
+				s.client.Disconnect()
 				for {
 					err := s.client.Connect()
 					if err == nil || err == whatsmeow.ErrAlreadyConnected {
