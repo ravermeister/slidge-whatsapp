@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mime"
 	"os"
+	"strings"
 
 	// Third-party libraries.
 	"go.mau.fi/whatsmeow"
@@ -163,6 +164,9 @@ type Attachment struct {
 	Path     string // Local path to the file is stored on disk. Mutually exclusive with [.Data, .URL]
 	Data     []byte // The raw binary data for this attachment. Mutually exclusive with [.URL, .Path].
 	URL      string // The URL to download attachment data from. Mutually exclusive with [.Path, .Data]
+
+	// Internal fields.
+	meta mediaMetadata // Metadata specific to audio/video files, used in processing.
 }
 
 // A Preview represents a short description for a URL provided in a message body, as usually derived
@@ -323,12 +327,15 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 			client.Log.Errorf("Failed to create a temporary file: %s", err)
 			return nil, err
 		}
+
 		defer f.Close()
+
 		_, err = f.Write(data)
 		if err != nil {
 			client.Log.Errorf("Failed to write to the temporary file: %s", err)
 			return nil, err
 		}
+
 		a.Path = f.Name()
 		result = append(result, a)
 	}
@@ -339,17 +346,27 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 // KnownMediaTypes represents MIME type to WhatsApp media types known to be handled by WhatsApp in a
 // special way (that is, not as generic file uploads).
 var knownMediaTypes = map[string]whatsmeow.MediaType{
-	"image/jpeg":      whatsmeow.MediaImage,
-	"audio/ogg":       whatsmeow.MediaAudio,
-	"application/ogg": whatsmeow.MediaAudio,
-	"video/mp4":       whatsmeow.MediaVideo,
+	"image/jpeg": whatsmeow.MediaImage,
+	"audio/mpeg": whatsmeow.MediaAudio,
+	"audio/mp4":  whatsmeow.MediaAudio,
+	"audio/aac":  whatsmeow.MediaAudio,
+	"audio/ogg":  whatsmeow.MediaAudio,
+	"video/mp4":  whatsmeow.MediaVideo,
 }
 
-// UploadAttachment attempts to push the given attachment data to WhatsApp according to the MIME type
-// specified within. Attachments are handled as generic file uploads unless they're of a specific
-// format, see [knownMediaTypes] for more information.
+// UploadAttachment attempts to push the given attachment data to WhatsApp according to the MIME
+// type specified within. Attachments are handled as generic file uploads unless they're of a
+// specific format; in addition, certain MIME types may be automatically converted to a
+// well-supported type via FFmpeg (if available).
 func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Message, error) {
-	mediaType := knownMediaTypes[attach.MIME]
+	var err error
+	var originalMIME = attach.MIME
+
+	if attach, err = convertAttachment(attach); err != nil {
+		client.Log.Warnf("failed to auto-convert attachment: %s", err)
+	}
+
+	mediaType := knownMediaTypes[strings.Split(attach.MIME, ";")[0]]
 	if mediaType == "" {
 		mediaType = whatsmeow.MediaDocument
 	}
@@ -374,6 +391,11 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 			},
 		}
 	case whatsmeow.MediaAudio:
+		if attach.meta == (mediaMetadata{}) {
+			if attach.meta, err = getMediaMetadata(attach.Data); err != nil {
+				client.Log.Warnf("failed getting metadata for audio attachment: %s", err)
+			}
+		}
 		message = &proto.Message{
 			AudioMessage: &proto.AudioMessage{
 				Url:           &upload.URL,
@@ -383,9 +405,19 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 				FileEncSha256: upload.FileEncSHA256,
 				FileSha256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(attach.Data))),
+				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
 			},
 		}
+		if attach.MIME == voiceMessageMIME {
+			message.AudioMessage.Ptt = ptrTo(true)
+			message.AudioMessage.Waveform = getMediaWaveform(attach.Data, attach.meta)
+		}
 	case whatsmeow.MediaVideo:
+		if attach.meta == (mediaMetadata{}) {
+			if attach.meta, err = getMediaMetadata(attach.Data); err != nil {
+				client.Log.Warnf("failed getting metadata for video attachment: %s", err)
+			}
+		}
 		message = &proto.Message{
 			VideoMessage: &proto.VideoMessage{
 				Url:           &upload.URL,
@@ -395,7 +427,14 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 				FileEncSha256: upload.FileEncSHA256,
 				FileSha256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(attach.Data))),
+				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
+				Width:         ptrTo(uint32(attach.meta.width)),
+				Height:        ptrTo(uint32(attach.meta.height)),
+				JpegThumbnail: getMediaThumbnail(attach.Data),
 			}}
+		if originalMIME == animatedImageMIME {
+			message.VideoMessage.GifPlayback = ptrTo(true)
+		}
 	case whatsmeow.MediaDocument:
 		message = &proto.Message{
 			DocumentMessage: &proto.DocumentMessage{

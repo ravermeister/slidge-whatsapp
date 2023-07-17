@@ -19,15 +19,21 @@ RUN gopy build -output=generated -no-make=true /build/
 
 FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
 
+USER root
+RUN apt update -y && apt install ffmpeg -y
+
 COPY --from=builder-base /venv /venv
 COPY ./slidge_whatsapp/*.py /venv/lib/python/site-packages/legacy_module/
 COPY --from=builder-base /build/generated /venv/lib/python/site-packages/legacy_module/generated
+
+USER slidge
 
 FROM builder-base AS slidge-whatsapp-dev
 
 COPY --from=docker.io/nicocool84/slidge-prosody-dev:latest /etc/prosody/certs/localhost.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 
+RUN apt update -y && apt install ffmpeg -y
 RUN pip install watchdog[watchmedo]
 ENV SLIDGE_LEGACY_MODULE=slidge_whatsapp
 

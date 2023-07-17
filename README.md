@@ -43,6 +43,13 @@ slidge-whatsapp --help
 For the bleeding edge, download artifacts of
 [this build job](https://builds.sr.ht/~nicoco/slidge-whatsapp/commits/master/ci.yml).
 
+Make sure to install `ffmpeg` for full outgoing media compatibility; for
+example, in Debian/Ubuntu:
+
+```sh
+sudo apt install ffmpeg
+```
+
 ## Dev
 
 ```sh
