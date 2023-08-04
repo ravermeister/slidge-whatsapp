@@ -39,7 +39,7 @@ const (
 	// presence updates for contacts and groups. By default, this interval has a jitter of ± half
 	// its value (e.g. for an initial interval of 2 hours, the final value will range from 1 to 3
 	// hours) in order to provide a more natural interaction with remote WhatsApp servers.
-	presenceRefreshInterval = 24 * time.Hour
+	presenceRefreshInterval = 6 * time.Hour
 )
 
 // HandleEventFunc represents a handler for incoming events sent to the Python Session, accepting an
