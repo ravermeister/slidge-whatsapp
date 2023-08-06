@@ -85,6 +85,9 @@ class Session(BaseSession[str, Recipient]):
         """
         self.whatsapp.Disconnect()
 
+    def __get_connected_status_message(self):
+        return f"Connected as {self.user_phone}"
+
     @ignore_contact_is_user
     async def handle_event(self, event, ptr):
         """
@@ -100,10 +103,16 @@ class Session(BaseSession[str, Recipient]):
             with open(str(self.user_shelf_path)) as shelf:
                 shelf["device_id"] = data.PairDeviceID
         elif event == whatsapp.EventConnected:
-            if not self._connected.done():
+            if self._connected.done():
+                # On re-pair, Session.login() is not called by slidge core, so
+                # the status message is not updated
+                self.send_gateway_status(
+                    self.__get_connected_status_message(), show="chat"
+                )
+            else:
                 self.contacts.user_legacy_id = data.ConnectedJID
                 self.user_phone = "+" + data.ConnectedJID.split("@")[0]
-                self._connected.set_result("Connected")
+                self._connected.set_result(self.__get_connected_status_message())
         elif event == whatsapp.EventLoggedOut:
             self.logged = False
             self.send_gateway_message(MESSAGE_LOGGED_OUT)
