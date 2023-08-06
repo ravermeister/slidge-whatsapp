@@ -294,7 +294,7 @@ class Session(BaseSession[str, Recipient]):
         """
         Send outgoing plain-text message to given WhatsApp contact.
         """
-        message_id = whatsapp.GenerateMessageID()
+        message_id = self.whatsapp.GenerateMessageID()
         message_preview = await self._get_preview(text) or whatsapp.Preview()
         message = whatsapp.Message(
             ID=message_id, JID=chat.legacy_id, Body=text, Preview=message_preview
@@ -316,7 +316,7 @@ class Session(BaseSession[str, Recipient]):
         """
         Send outgoing media message (i.e. audio, image, document) to given WhatsApp contact.
         """
-        message_id = whatsapp.GenerateMessageID()
+        message_id = self.whatsapp.GenerateMessageID()
         message_attachment = whatsapp.Attachment(
             MIME=http_response.content_type, Filename=basename(url), URL=url
         )

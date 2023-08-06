@@ -179,12 +179,6 @@ type Preview struct {
 	ImageURL    string // The URL to download an image associated with the URL. Mutually exclusive with [.ImageData].
 }
 
-// GenerateMessageID returns a valid, pseudo-random message ID for use in outgoing messages. This
-// function will panic if there is no entropy available for random ID generation.
-func GenerateMessageID() string {
-	return whatsmeow.GenerateMessageID()
-}
-
 // NewMessageEvent returns event data meant for [Session.propagateEvent] for the primive message
 // event given. Unknown or invalid messages will return an [EventUnknown] event with nil data.
 func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, *EventPayload) {

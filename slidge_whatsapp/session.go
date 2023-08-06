@@ -274,6 +274,12 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 	return payload
 }
 
+// GenerateMessageID returns a valid, pseudo-random message ID for use in outgoing messages. This
+// function will panic if there is no entropy available for random ID generation.
+func (s *Session) GenerateMessageID() string {
+	return s.client.GenerateMessageID()
+}
+
 // SendChatState sends the given chat state notification (e.g. composing message) to WhatsApp for the
 // contact specified within.
 func (s *Session) SendChatState(state ChatState) error {
