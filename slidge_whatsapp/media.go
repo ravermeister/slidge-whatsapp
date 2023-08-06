@@ -145,7 +145,7 @@ func convertAttachment(attach Attachment) (Attachment, error) {
 
 	if o, ok := convertMediaTypes[attach.MIME]; ok {
 		if data, err := o.call(attach.Data, o.args...); err != nil {
-			return Attachment{}, fmt.Errorf("conversion from %s to %s failed: %s", attach.MIME, o.mime, err)
+			return attach, fmt.Errorf("conversion from %s to %s failed: %s", attach.MIME, o.mime, err)
 		} else if len(data) > 0 {
 			attach.Data, attach.MIME = data, o.mime
 		}
