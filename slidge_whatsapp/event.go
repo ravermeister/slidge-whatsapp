@@ -234,23 +234,24 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 		message.Kind = MessageAttachment
 	}
 
+	// Get contact vCard from message, if any, converting it into an inline attachment.
+	if c := evt.Message.GetContactMessage(); c != nil {
+		message.Attachments = append(message.Attachments, Attachment{
+			MIME:     "text/vcard",
+			Filename: c.GetDisplayName() + ".vcf",
+			Data:     []byte(c.GetVcard()),
+		})
+		message.Kind = MessageAttachment
+		message = getMessageWithContext(message, c.GetContextInfo())
+	}
+
 	// Get extended information from message, if available. Extended messages typically represent
 	// messages with additional context, such as replies, forwards, etc.
 	if e := evt.Message.GetExtendedTextMessage(); e != nil {
 		if message.Body == "" {
 			message.Body = e.GetText()
 		}
-		if c := e.GetContextInfo(); c != nil {
-			message.ReplyID = c.GetStanzaId()
-			message.OriginJID = c.GetParticipant()
-			if q := c.GetQuotedMessage(); q != nil {
-				if qe := q.GetExtendedTextMessage(); qe != nil {
-					message.ReplyBody = qe.GetText()
-				} else {
-					message.ReplyBody = q.GetConversation()
-				}
-			}
-		}
+
 		if e.MatchedText != nil {
 			message.Preview = Preview{
 				Title:       e.GetTitle(),
@@ -262,6 +263,8 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 				message.Preview.URL = url
 			}
 		}
+
+		message = getMessageWithContext(message, e.GetContextInfo())
 	}
 
 	// Ignore obviously invalid messages.
@@ -270,6 +273,28 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	}
 
 	return EventMessage, &EventPayload{Message: message}
+}
+
+// GetMessageWithContext processes the given [Message] and applies any context metadata might be
+// useful; examples of context include messages being quoted. If no context is found, the original
+// message is returned unchanged.
+func getMessageWithContext(message Message, info *proto.ContextInfo) Message {
+	if info == nil {
+		return message
+	}
+
+	message.ReplyID = info.GetStanzaId()
+	message.OriginJID = info.GetParticipant()
+
+	if q := info.GetQuotedMessage(); q != nil {
+		if qe := q.GetExtendedTextMessage(); qe != nil {
+			message.ReplyBody = qe.GetText()
+		} else {
+			message.ReplyBody = q.GetConversation()
+		}
+	}
+
+	return message
 }
 
 // GetMessageAttachments fetches and decrypts attachments (images, audio, video, or documents) sent

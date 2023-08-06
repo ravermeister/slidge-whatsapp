@@ -454,6 +454,7 @@ class Attachment(LegacyAttachment):
         return Attachment(
             content_type=wa_attachment.MIME,
             path=wa_attachment.Path,
+            data=bytes(wa_attachment.Data) if len(wa_attachment.Data) > 0 else None,
             caption=wa_attachment.Caption
             if muc is None
             else muc.replace_mentions(wa_attachment.Caption),
