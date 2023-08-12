@@ -60,9 +60,8 @@ type Avatar struct {
 // A Contact represents any entity that be communicated with directly in WhatsApp. This typically
 // represents people, but may represent a business or bot as well, but not a group-chat.
 type Contact struct {
-	JID    string // The WhatsApp JID for this contact.
-	Name   string // The user-set, human-readable name for this contact.
-	Avatar Avatar // The profile picture for this contact.
+	JID  string // The WhatsApp JID for this contact.
+	Name string // The user-set, human-readable name for this contact.
 }
 
 // NewContactEvent returns event data meant for [Session.propagateEvent] for the contact information
@@ -82,10 +81,6 @@ func newContactEvent(c *whatsmeow.Client, jid types.JID, info types.ContactInfo)
 	// Don't attempt to synchronize contacts with no user-readable name.
 	if contact.Name == "" {
 		return EventUnknown, nil
-	}
-
-	if p, _ := c.GetProfilePictureInfo(jid, nil); p != nil {
-		contact.Avatar = Avatar{ID: p.ID, URL: p.URL}
 	}
 
 	return EventContact, &EventPayload{Contact: contact}

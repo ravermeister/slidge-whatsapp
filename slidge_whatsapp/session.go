@@ -3,6 +3,7 @@ package whatsapp
 import (
 	// Standard library.
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -412,7 +413,7 @@ func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 	}
 
 	p, err := s.client.GetProfilePictureInfo(jid, &whatsmeow.GetProfilePictureParams{ExistingID: avatarID})
-	if err != nil {
+	if err != nil && !errors.Is(err, whatsmeow.ErrProfilePictureNotSet) {
 		return Avatar{}, fmt.Errorf("Could not get avatar: %s", err)
 	} else if p != nil {
 		return Avatar{ID: p.ID, URL: p.URL}, nil
