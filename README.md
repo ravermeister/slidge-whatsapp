@@ -2,7 +2,7 @@
 
 [Home](https://sr.ht/~nicoco/slidge) |
 [Docs](https://slidge.im/slidge-whatsapp) |
-[Issues](https://sr.ht/~nicoco/slidge/slidge-whatsapp) |
+[Issues](https://todo.sr.ht/~nicoco/slidge-whatsapp) |
 [Patches](https://lists.sr.ht/~nicoco/public-inbox) |
 [Chat](xmpp:slidge@conference.nicoco.fr?join)
 
