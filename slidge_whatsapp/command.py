@@ -47,9 +47,9 @@ class ChangePresence(Command):
     async def finish(form_values: dict, session: "Session", _ifrom: JID):
         p = form_values.get("presence")
         if p == "available":
-            session.whatsapp.SendPresence(whatsapp.PresenceAvailable)
+            session.whatsapp.SendPresence(whatsapp.PresenceAvailable, "")
         elif p == "unavailable":
-            session.whatsapp.SendPresence(whatsapp.PresenceUnavailable)
+            session.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")
         else:
             raise ValueError("Not a valid presence kind.", p)
         return f"Presence succesfully set to {p}"

@@ -11,7 +11,12 @@ from typing import Optional, Union
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, GatewayUser, global_config
 from slidge.core.contact.roster import ContactIsUser
-from slidge.util.types import LegacyAttachment, MessageReference
+from slidge.util.types import (
+    LegacyAttachment,
+    MessageReference,
+    PseudoPresenceShow,
+    ResourceDict,
+)
 
 from . import config
 from .contact import Contact, Roster
@@ -339,6 +344,30 @@ class Session(BaseSession[str, Recipient]):
         set_reply_to(chat, message, reply_to_msg_id, reply_to_fallback_text, reply_to)
         self.whatsapp.SendMessage(message)
         return message_id
+
+    async def presence(
+        self,
+        resource: str,
+        show: PseudoPresenceShow,
+        status: str,
+        resources: dict[str, ResourceDict],
+        merged_resource: Optional[ResourceDict],
+    ):
+        """
+        Send outgoing availability status (i.e. presence) based on combined status of all connected
+        XMPP clients.
+        """
+        if not merged_resource:
+            self.whatsapp.SendPresence(whatsapp.PresenceUnavailable, "")
+        else:
+            presence = (
+                whatsapp.PresenceAvailable
+                if merged_resource["show"] in ["chat", ""]
+                else whatsapp.PresenceUnavailable
+            )
+            self.whatsapp.SendPresence(
+                presence, merged_resource["status"] if merged_resource["status"] else ""
+            )
 
     async def active(self, c: Recipient, thread=None):
         """
