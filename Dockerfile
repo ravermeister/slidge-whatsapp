@@ -1,8 +1,30 @@
-FROM docker.io/nicocool84/slidge-builder AS builder-base
+ARG PYTHONVER=3.11
+## Base build stage for Slidge, prepares and installs common dependencies.
+FROM docker.io/library/python:$PYTHONVER-bookworm AS builder
+ARG PYTHONVER
+ENV PATH="/venv/bin:/root/.local/bin:$PATH"
 
-RUN echo "deb http://deb.debian.org/debian bullseye-backports main" > /etc/apt/sources.list.d/backports.list && \
-    apt update -y && \
-    apt install -yt bullseye-backports golang
+# rust/cargo is for building "cryptography" since they don't provide wheels for arm32
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cargo \
+    curl \
+    git \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
+    python3-dev \
+    rustc \
+    golang
+
+RUN python3 -m venv /venv
+RUN ln -s /venv/lib/python$PYTHONVER /venv/lib/python
+RUN curl -fL https://install.python-poetry.org | python3 - || (cat /poetry-* && false)
+
+WORKDIR /build
 
 ENV GOBIN="/usr/local/bin"
 RUN go install github.com/go-python/gopy@latest
@@ -22,13 +44,13 @@ FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
 USER root
 RUN apt update -y && apt install ffmpeg -y
 
-COPY --from=builder-base /venv /venv
+COPY --from=builder /venv /venv
 COPY ./slidge_whatsapp/*.py /venv/lib/python/site-packages/legacy_module/
-COPY --from=builder-base /build/generated /venv/lib/python/site-packages/legacy_module/generated
+COPY --from=builder /build/generated /venv/lib/python/site-packages/legacy_module/generated
 
 USER slidge
 
-FROM builder-base AS slidge-whatsapp-dev
+FROM builder AS slidge-whatsapp-dev
 
 COPY --from=docker.io/nicocool84/slidge-prosody-dev:latest /etc/prosody/certs/localhost.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
@@ -46,7 +68,7 @@ ENTRYPOINT ["python", "/watcher.py", "/venv/lib/python/site-packages/slidge:/ven
 # docker buildx build . --target wheel \
 # --platform linux/arm64,linux/amd64 \
 # -o ./dist/
-FROM builder-base AS builder-wheel
+FROM builder AS builder-wheel
 
 RUN pip install pybindgen
 COPY go.* /build/
