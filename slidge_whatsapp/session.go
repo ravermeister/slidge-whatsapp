@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"runtime"
 	"time"
@@ -33,6 +34,13 @@ const (
 	// The minimum and maximum wait interval between connection retries after keep-alive check failure.
 	keepAliveMinRetryInterval = 5 * time.Second
 	keepAliveMaxRetryInterval = 5 * time.Minute
+
+	// The amount of time to wait before re-requesting contact presences WhatsApp. This is required
+	// since otherwise WhatsApp will assume that you're inactive, and will stop sending presence
+	// updates for contacts and groups. By default, this interval has a jitter of ± half its value
+	// (e.g. for an initial interval of 2 hours, the final value will range from 1 to 3 hours) in
+	// order to provide a more natural interaction with remote WhatsApp servers.
+	presenceRefreshInterval = 12 * time.Hour
 )
 
 // HandleEventFunc represents a handler for incoming events sent to the Python Session, accepting an
@@ -49,6 +57,7 @@ type Session struct {
 	eventHandler HandleEventFunc   // The event handler for the overarching Session.
 	client       *whatsmeow.Client // The concrete client connection to WhatsApp for this session.
 	gateway      *Gateway          // The Gateway this Session is attached to.
+	presenceChan chan PresenceKind // A channel used for periodically refreshing contact presences.
 }
 
 // Login attempts to authenticate the given [Session], either by re-using the [LinkedDevice] attached
@@ -72,6 +81,38 @@ func (s *Session) Login() error {
 
 	s.client = whatsmeow.NewClient(store, s.gateway.logger)
 	s.client.AddEventHandler(s.handleEvent)
+
+	// Refresh contact presences on a set interval, to avoid issues with WhatsApp dropping them
+	// entirely. Contact presences are refreshed only if our current status is set to "available";
+	// otherwise, a refresh is queued up for whenever our status changes back to "available".
+	s.presenceChan = make(chan PresenceKind, 1)
+	go func() {
+		var newTimer = func(d time.Duration) *time.Timer {
+			return time.NewTimer(d + time.Duration(rand.Int63n(int64(d))-int64(d/2)))
+		}
+		var timer = newTimer(presenceRefreshInterval)
+		var presence = PresenceAvailable
+		for {
+			select {
+			case <-timer.C:
+				if presence == PresenceAvailable {
+					timer = newTimer(presenceRefreshInterval)
+					s.GetContacts(false)
+				} else {
+					timer = nil
+				}
+			case p, ok := <-s.presenceChan:
+				if !ok && timer != nil {
+					timer.Stop()
+					return
+				} else if timer == nil && p == PresenceAvailable {
+					timer = newTimer(presenceRefreshInterval)
+					s.GetContacts(false)
+				}
+				presence = p
+			}
+		}
+	}()
 
 	// Simply connect our client if already registered.
 	if s.client.Store.ID != nil {
@@ -107,6 +148,7 @@ func (s *Session) Logout() error {
 
 	err := s.client.Logout()
 	s.client = nil
+	close(s.presenceChan)
 
 	return err
 }
@@ -116,6 +158,7 @@ func (s *Session) Disconnect() error {
 	if s.client != nil {
 		s.client.Disconnect()
 		s.client = nil
+		close(s.presenceChan)
 	}
 
 	return nil
@@ -302,6 +345,7 @@ func (s *Session) SendPresence(presence PresenceKind, statusMessage string) erro
 	}
 
 	var err error
+	s.presenceChan <- presence
 
 	switch presence {
 	case PresenceAvailable:
