@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 REGISTRATION_INSTRUCTIONS = (
     "Continue and scan the resulting QR codes on your main device to complete"
-    " registration. More information at https://slidge.im/user/plugins/whatsapp.html"
+    " registration. More information at https://slidge.im/slidge-whatsapp/user.html"
 )
 
 WELCOME_MESSAGE = (

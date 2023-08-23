@@ -156,9 +156,9 @@ func convertAttachment(attach Attachment) (Attachment, error) {
 
 const (
 	// The maximum image buffer size we'll attempt to process in any way, in bytes.
-	maxImageSize = 1024 * 1024 * 1024 * 10 // 10MiB
+	maxImageSize = 1024 * 1024 * 10 // 10MiB
 	// The maximum media buffer size we'll attempt to process in any way, in bytes.
-	maxMediaSize = 1024 * 1024 * 1024 * 20 // 20MiB
+	maxMediaSize = 1024 * 1024 * 20 // 20MiB
 )
 
 // ConvertImage returns a buffer containing a JPEG-encoded image, as converted from the source image

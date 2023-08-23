@@ -236,6 +236,11 @@ func (s *Session) SendMessage(message Message) error {
 	return err
 }
 
+const (
+	// The maximum size thumbnail image we'll send in outgoing URL preview messages.
+	maxPreviewThumbnailSize = 1024 * 500 // 500KiB
+)
+
 // GetMessagePayload returns a concrete WhatsApp protocol message for the given Message representation.
 // The specific fields set within the protocol message, as well as its type, can depend on specific
 // fields set in the Message type, and may be nested recursively (e.g. when replying to a reply).
@@ -266,13 +271,15 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 		if payload == nil {
 			payload = &proto.Message{ExtendedTextMessage: &proto.ExtendedTextMessage{Text: &message.Body}}
 		}
+
 		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
 		payload.ExtendedTextMessage.Title = &message.Preview.Title
+
 		if url := message.Preview.ImageURL; url != "" {
-			if buf, err := getFromURL(s.gateway.httpClient, url); err == nil {
+			if buf, err := getFromURL(s.gateway.httpClient, url); err == nil && len(buf) < maxPreviewThumbnailSize {
 				payload.ExtendedTextMessage.JpegThumbnail = buf
 			}
-		} else if len(message.Preview.ImageData) > 0 {
+		} else if len(message.Preview.ImageData) > 0 && len(message.Preview.ImageData) < maxPreviewThumbnailSize {
 			payload.ExtendedTextMessage.JpegThumbnail = message.Preview.ImageData
 		}
 	}
