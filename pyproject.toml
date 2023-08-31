@@ -28,10 +28,6 @@ pybindgen = "^0.22.1"
 git = "https://git.sr.ht/~nicoco/slidge"
 branch = "master"
 
-[[tool.poetry.source]]
-name = "slidge-repo"
-url = "https://slidge.im/repo"
-
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.21.0"
 black = "^23.3.0"
