@@ -90,24 +90,26 @@ func (s *Session) Login() error {
 		var newTimer = func(d time.Duration) *time.Timer {
 			return time.NewTimer(d + time.Duration(rand.Int63n(int64(d))-int64(d/2)))
 		}
-		var timer = newTimer(presenceRefreshInterval)
+		var timer, timerStopped = newTimer(presenceRefreshInterval), false
 		var presence = PresenceAvailable
 		for {
 			select {
 			case <-timer.C:
 				if presence == PresenceAvailable {
-					timer = newTimer(presenceRefreshInterval)
 					s.GetContacts(false)
+					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				} else {
-					timer = nil
+					timerStopped = true
 				}
 			case p, ok := <-s.presenceChan:
-				if !ok && timer != nil {
-					timer.Stop()
+				if !ok && !timerStopped {
+					if !timer.Stop() {
+						<-timer.C
+					}
 					return
-				} else if timer == nil && p == PresenceAvailable {
-					timer = newTimer(presenceRefreshInterval)
+				} else if timerStopped && p == PresenceAvailable {
 					s.GetContacts(false)
+					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				}
 				presence = p
 			}
