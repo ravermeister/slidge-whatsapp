@@ -20,9 +20,9 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     rustc \
     golang
 
+RUN pip install poetry
 RUN python3 -m venv /venv
 RUN ln -s /venv/lib/python$PYTHONVER /venv/lib/python
-RUN curl -fL https://install.python-poetry.org | python3 - || (cat /poetry-* && false)
 
 WORKDIR /build
 
