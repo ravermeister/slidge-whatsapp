@@ -17,12 +17,14 @@ class Participant(LegacyParticipant):
     muc: "MUC"
 
     def send_text(self, body, legacy_msg_id, **kw):
-        super().send_text(body, legacy_msg_id, **kw)
+        res = super().send_text(body, legacy_msg_id, **kw)
         self._store(legacy_msg_id)
+        return res
 
     async def send_file(self, file_path, legacy_msg_id, **kw):
-        await super().send_file(file_path, legacy_msg_id, **kw)
+        res = await super().send_file(file_path, legacy_msg_id, **kw)
         self._store(legacy_msg_id)
+        return res
 
     def _store(self, legacy_msg_id: str):
         if self.is_user:
