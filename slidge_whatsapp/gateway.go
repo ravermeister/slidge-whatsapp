@@ -84,8 +84,8 @@ type Gateway struct {
 	logger     walog.Logger
 }
 
-// NewSession returns a new for the LinkedDevice given. If the linked device does not have a valid
-// ID, a pair operation will be required, as described in [Session.Login].
+// NewSession returns a new [Session] for the LinkedDevice given. If the linked device does not have
+// a valid ID, a pair operation will be required, as described in [Session.Login].
 func (w *Gateway) NewSession(device LinkedDevice) *Session {
 	return &Session{device: device, gateway: w}
 }

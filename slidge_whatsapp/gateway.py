@@ -12,13 +12,15 @@ if TYPE_CHECKING:
     from .session import Session
 
 REGISTRATION_INSTRUCTIONS = (
-    "Continue and scan the resulting QR codes on your main device to complete"
-    " registration. More information at https://slidge.im/slidge-whatsapp/user.html"
+    "Continue and scan the resulting QR codes on your main device, or alternatively, "
+    "use the 'pair-phone' command to complete registration. More information at "
+    "https://slidge.im/slidge-whatsapp/user.html"
 )
 
 WELCOME_MESSAGE = (
-    "Thank you for registering! Please scan the following QR code on your main device"
-    " to complete registration, or type 'help' to list other available commands."
+    "Thank you for registering! Please scan the following QR code on your main device "
+    "or use the 'pair-phone' command to complete registration, or type 'help' to list "
+    "other available commands."
 )
 
 

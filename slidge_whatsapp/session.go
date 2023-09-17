@@ -166,6 +166,26 @@ func (s *Session) Disconnect() error {
 	return nil
 }
 
+// PairPhone returns a one-time code from WhatsApp, used for pairing this [Session] against the
+// user's primary device, as identified by the given phone number. This will return an error if the
+// [Session] is already paired, or if the phone number given is empty or invalid.
+func (s *Session) PairPhone(phone string) (string, error) {
+	if s.client == nil {
+		return "", fmt.Errorf("Cannot pair for uninitialized session")
+	} else if s.client.Store.ID != nil {
+		return "", fmt.Errorf("Refusing to pair for connected session")
+	} else if phone == "" {
+		return "", fmt.Errorf("Cannot pair for empty phone number")
+	}
+
+	code, err := s.client.PairPhone(phone, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+	if err != nil {
+		return "", fmt.Errorf("Failed to pair with phone number: %s", err)
+	}
+
+	return code, nil
+}
+
 // SendMessage processes the given Message and sends a WhatsApp message for the kind and contact JID
 // specified within. In general, different message kinds require different fields to be set; see the
 // documentation for the [Message] type for more information.
