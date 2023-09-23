@@ -156,12 +156,10 @@ type Attachment struct {
 	MIME     string // The MIME type for attachment.
 	Filename string // The recommended file name for this attachment. May be an auto-generated name.
 	Caption  string // The user-provided caption, provided alongside this attachment.
-	Path     string // Local path to the file is stored on disk. Mutually exclusive with [.Data, .URL]
-	Data     []byte // The raw binary data for this attachment. Mutually exclusive with [.URL, .Path].
-	URL      string // The URL to download attachment data from. Mutually exclusive with [.Path, .Data]
+	Path     string // Local path to the file is stored on disk.
 
 	// Internal fields.
-	meta mediaMetadata // Metadata specific to audio/video files, used in processing.
+	meta attachmentMetadata // Metadata specific to audio/video files, used in processing.
 }
 
 // A Preview represents a short description for a URL provided in a message body, as usually derived
@@ -170,8 +168,7 @@ type Preview struct {
 	URL         string // The original (or canonical) URL this preview was generated for.
 	Title       string // The short title for the URL preview.
 	Description string // The (optional) long-form description for the URL preview.
-	ImageData   []byte // The raw binary data for the image associated with the URL. Mutally exclusive with [.ImageURL].
-	ImageURL    string // The URL to download an image associated with the URL. Mutually exclusive with [.ImageData].
+	ImagePath   string // The local path for the image associated with the URL.
 }
 
 // NewMessageEvent returns event data meant for [Session.propagateEvent] for the primive message
@@ -231,10 +228,15 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 
 	// Get contact vCard from message, if any, converting it into an inline attachment.
 	if c := evt.Message.GetContactMessage(); c != nil {
+		tmp, err := createTempFile([]byte(c.GetVcard()))
+		if err != nil {
+			client.Log.Errorf("Failed getting contact message: %s", err)
+			return EventUnknown, nil
+		}
 		message.Attachments = append(message.Attachments, Attachment{
 			MIME:     "text/vcard",
 			Filename: c.GetDisplayName() + ".vcf",
-			Data:     []byte(c.GetVcard()),
+			Path:     tmp,
 		})
 		message.Kind = MessageAttachment
 		message = getMessageWithContext(message, c.GetContextInfo())
@@ -245,18 +247,6 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	if e := evt.Message.GetExtendedTextMessage(); e != nil {
 		if message.Body == "" {
 			message.Body = e.GetText()
-		}
-
-		if e.MatchedText != nil {
-			message.Preview = Preview{
-				Title:       e.GetTitle(),
-				Description: e.GetDescription(),
-				URL:         e.GetMatchedText(),
-				ImageData:   e.GetJpegThumbnail(),
-			}
-			if url := e.GetCanonicalUrl(); url != "" {
-				message.Preview.URL = url
-			}
 		}
 
 		message = getMessageWithContext(message, e.GetContextInfo())
@@ -336,21 +326,12 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 			return nil, err
 		}
 
-		f, err := os.CreateTemp("", "slidge-whatsapp-*")
+		tmp, err := createTempFile(data)
 		if err != nil {
-			client.Log.Errorf("Failed to create a temporary file: %s", err)
-			return nil, err
+			return nil, fmt.Errorf("failed writing to temporary file: %w", err)
 		}
 
-		defer f.Close()
-
-		_, err = f.Write(data)
-		if err != nil {
-			client.Log.Errorf("Failed to write to the temporary file: %s", err)
-			return nil, err
-		}
-
-		a.Path = f.Name()
+		a.Path = tmp
 		result = append(result, a)
 	}
 
@@ -372,11 +353,9 @@ var knownMediaTypes = map[string]whatsmeow.MediaType{
 // type specified within. Attachments are handled as generic file uploads unless they're of a
 // specific format; in addition, certain MIME types may be automatically converted to a
 // well-supported type via FFmpeg (if available).
-func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Message, error) {
-	var err error
+func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*proto.Message, error) {
 	var originalMIME = attach.MIME
-
-	if attach, err = convertAttachment(attach); err != nil {
+	if err := convertAttachment(attach); err != nil {
 		client.Log.Warnf("failed to auto-convert attachment: %s", err)
 	}
 
@@ -385,7 +364,14 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 		mediaType = whatsmeow.MediaDocument
 	}
 
-	upload, err := client.Upload(context.Background(), attach.Data, mediaType)
+	data, err := os.ReadFile(attach.Path)
+	if err != nil {
+		return nil, err
+	} else if len(data) == 0 {
+		return nil, fmt.Errorf("attachment file contains no data")
+	}
+
+	upload, err := client.Upload(context.Background(), data, mediaType)
 	if err != nil {
 		return nil, err
 	}
@@ -401,13 +387,13 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 				Mimetype:      &attach.MIME,
 				FileEncSha256: upload.FileEncSHA256,
 				FileSha256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    ptrTo(uint64(len(data))),
 			},
 		}
 	case whatsmeow.MediaAudio:
-		if attach.meta == (mediaMetadata{}) {
-			if attach.meta, err = getMediaMetadata(attach.Data); err != nil {
-				client.Log.Warnf("failed getting metadata for audio attachment: %s", err)
+		if attach.meta == (attachmentMetadata{}) {
+			if err = populateAttachmentMetadata(attach); err != nil {
+				client.Log.Warnf("failed fetching attachment metadata: %s", err)
 			}
 		}
 		message = &proto.Message{
@@ -418,18 +404,22 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 				Mimetype:      &attach.MIME,
 				FileEncSha256: upload.FileEncSHA256,
 				FileSha256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    ptrTo(uint64(len(data))),
 				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
 			},
 		}
 		if attach.MIME == voiceMessageMIME {
 			message.AudioMessage.Ptt = ptrTo(true)
-			message.AudioMessage.Waveform = getMediaWaveform(attach.Data, attach.meta)
+			if wave, err := getAttachmentWaveform(attach); err != nil {
+				client.Log.Warnf("failed generating attachment waveform: %s", err)
+			} else {
+				message.AudioMessage.Waveform = wave
+			}
 		}
 	case whatsmeow.MediaVideo:
-		if attach.meta == (mediaMetadata{}) {
-			if attach.meta, err = getMediaMetadata(attach.Data); err != nil {
-				client.Log.Warnf("failed getting metadata for video attachment: %s", err)
+		if attach.meta == (attachmentMetadata{}) {
+			if err = populateAttachmentMetadata(attach); err != nil {
+				client.Log.Warnf("failed fetching attachment metadata: %s", err)
 			}
 		}
 		message = &proto.Message{
@@ -440,12 +430,16 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 				Mimetype:      &attach.MIME,
 				FileEncSha256: upload.FileEncSHA256,
 				FileSha256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    ptrTo(uint64(len(data))),
 				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
 				Width:         ptrTo(uint32(attach.meta.width)),
 				Height:        ptrTo(uint32(attach.meta.height)),
-				JpegThumbnail: getMediaThumbnail(attach.Data),
 			}}
+		if thumb, err := getAttachmentThumbnail(attach); err != nil {
+			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
+		} else {
+			message.VideoMessage.JpegThumbnail = thumb
+		}
 		if originalMIME == animatedImageMIME {
 			message.VideoMessage.GifPlayback = ptrTo(true)
 		}
@@ -458,7 +452,7 @@ func uploadAttachment(client *whatsmeow.Client, attach Attachment) (*proto.Messa
 				Mimetype:      &attach.MIME,
 				FileEncSha256: upload.FileEncSHA256,
 				FileSha256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(attach.Data))),
+				FileLength:    ptrTo(uint64(len(data))),
 				FileName:      &attach.Filename,
 			}}
 	}

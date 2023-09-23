@@ -5,9 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
-	"net/http"
+	"os"
 	"runtime"
 	"time"
 
@@ -209,22 +208,10 @@ func (s *Session) SendMessage(message Message) error {
 			return nil
 		}
 
-		// Attempt to download attachment data if URL is set.
-		if url := message.Attachments[0].URL; url != "" {
-			if buf, err := getFromURL(s.gateway.httpClient, url); err != nil {
-				return fmt.Errorf("Failed downloading attachment: %s", err)
-			} else {
-				message.Attachments[0].Data = buf
-			}
-		}
-
-		// Ignore attachments with no data set or downloaded.
-		if len(message.Attachments[0].Data) == 0 {
-			return nil
-		}
+		defer os.Remove(message.Attachments[0].Path)
 
 		// Upload attachment into WhatsApp before sending message.
-		if payload, err = uploadAttachment(s.client, message.Attachments[0]); err != nil {
+		if payload, err = uploadAttachment(s.client, &message.Attachments[0]); err != nil {
 			return fmt.Errorf("Failed uploading attachment: %s", err)
 		}
 		extra.ID = message.ID
@@ -297,12 +284,11 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
 		payload.ExtendedTextMessage.Title = &message.Preview.Title
 
-		if url := message.Preview.ImageURL; url != "" {
-			if buf, err := getFromURL(s.gateway.httpClient, url); err == nil && len(buf) < maxPreviewThumbnailSize {
+		if message.Preview.ImagePath != "" {
+			if buf, err := os.ReadFile(message.Preview.ImagePath); err == nil && len(buf) < maxPreviewThumbnailSize {
 				payload.ExtendedTextMessage.JpegThumbnail = buf
 			}
-		} else if len(message.Preview.ImageData) > 0 && len(message.Preview.ImageData) < maxPreviewThumbnailSize {
-			payload.ExtendedTextMessage.JpegThumbnail = message.Preview.ImageData
+			os.Remove(message.Preview.ImagePath)
 		}
 	}
 
@@ -589,24 +575,6 @@ func (s *Session) handleEvent(evt interface{}) {
 			}()
 		}
 	}
-}
-
-// GetFromURL is a convienience function for fetching the raw response body from the URL given, for
-// the provided HTTP client.
-func getFromURL(client *http.Client, url string) ([]byte, error) {
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	buf, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return buf, nil
 }
 
 // PtrTo returns a pointer to the given value, and is used for convenience when converting between

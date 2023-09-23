@@ -1,13 +1,16 @@
 from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
+from os import fdopen
 from os.path import basename
 from pathlib import Path
+from tempfile import mkstemp
 from re import search
 from shelve import open
 from threading import Lock
 from typing import Optional, Union
 
+from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, GatewayUser, global_config
 from slidge.contact.roster import ContactIsUser
@@ -227,7 +230,7 @@ class Session(BaseSession[str, Recipient]):
                     Title=preview.title,
                     Description=preview.description or "",
                     URL=url,
-                    ImageURL=preview.image or "",
+                    ImagePath=await get_url_temp(self.http, preview.image),
                 )
             except Exception as e:
                 self.log.debug("Could not generate a preview for %s", url, exc_info=e)
@@ -268,17 +271,10 @@ class Session(BaseSession[str, Recipient]):
                 when=message_timestamp,
                 carbon=message.IsCarbon,
             )
-            if global_config.NO_UPLOAD_METHOD == "move":
-                # can't remove files that have been moved
-                return
             for attachment in attachments:
-                # when the path attribute is set, it means we're writing to
-                # disk instead of passing bytes through RAM, as a workaround
-                # for the massive perf issue, cf
-                # https://github.com/go-python/gopy/issues/323
-                if p := attachment.path:
-                    self.log.debug("Removing '%s' from disk", p)
-                    Path(p).unlink()
+                if global_config.NO_UPLOAD_METHOD != "symlink":
+                    self.log.debug("Removing '%s' from disk", attachment.path)
+                    Path(attachment.path).unlink(missing_ok=True)
         elif message.Kind == whatsapp.MessageEdit:
             contact.correct(
                 legacy_msg_id=message.ID,
@@ -332,7 +328,9 @@ class Session(BaseSession[str, Recipient]):
         """
         message_id = self.whatsapp.GenerateMessageID()
         message_attachment = whatsapp.Attachment(
-            MIME=http_response.content_type, Filename=basename(url), URL=url
+            MIME=http_response.content_type,
+            Filename=basename(url),
+            Path=await get_url_temp(self.http, url),
         )
         message = whatsapp.Message(
             Kind=whatsapp.MessageAttachment,
@@ -492,7 +490,6 @@ class Attachment(LegacyAttachment):
         return Attachment(
             content_type=wa_attachment.MIME,
             path=wa_attachment.Path,
-            data=bytes(wa_attachment.Data) if len(wa_attachment.Data) > 0 else None,
             caption=wa_attachment.Caption
             if muc is None
             else muc.replace_mentions(wa_attachment.Caption),
@@ -540,3 +537,13 @@ def set_reply_to(
         message.ReplyBody = strip_quote_prefix(reply_to_fallback_text)
         message.Body = message.Body.lstrip()
     return message
+
+
+async def get_url_temp(client: ClientSession, url: str) -> Optional[str]:
+    temp_path = None
+    async with client.get(url) as resp:
+        if resp.status == 200:
+            temp_file, temp_path = mkstemp(dir=global_config.HOME_DIR / "tmp")
+            with fdopen(temp_file, "wb") as f:
+                f.write(await resp.read())
+    return temp_path
