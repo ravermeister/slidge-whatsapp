@@ -2,11 +2,10 @@ package whatsapp
 
 import (
 	// Standard library.
-	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
-	"time"
 
 	// Third-party libraries.
 	_ "github.com/mattn/go-sqlite3"
@@ -74,14 +73,52 @@ func (h HandleLogFunc) Sub(string) walog.Logger {
 // A Gateway represents a persistent process for establishing individual sessions between linked
 // devices and WhatsApp.
 type Gateway struct {
-	DBPath        string // The filesystem path for the client database.
-	Name          string // The name to display when linking devices on WhatsApp.
-	SkipVerifyTLS bool   // Whether or not our internal HTTP client will skip TLS certificate verification.
+	DBPath  string // The filesystem path for the client database.
+	Name    string // The name to display when linking devices on WhatsApp.
+	TempDir string // The directory to create temporary files under.
 
 	// Internal variables.
 	container  *sqlstore.Container
 	httpClient *http.Client
 	logger     walog.Logger
+}
+
+// NewGateway returns a new, un-initialized Gateway. This function should always be followed by calls
+// to [Gateway.Init], assuming a valid [Gateway.DBPath] is set.
+func NewGateway() *Gateway {
+	return &Gateway{}
+}
+
+// SetLogHandler specifies the log handling function to use for all [Gateway] and [Session] operations.
+func (w *Gateway) SetLogHandler(h HandleLogFunc) {
+	w.logger = HandleLogFunc(func(level ErrorLevel, message string) {
+		// Don't allow other Goroutines from using this thread, as this might lead to concurrent
+		// use of the GIL, which can lead to crashes.
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
+		h(level, message)
+	})
+}
+
+// Init performs initialization procedures for the Gateway, and is expected to be run before any
+// calls to [Gateway.Session].
+func (w *Gateway) Init() error {
+	container, err := sqlstore.New("sqlite3", w.DBPath, w.logger)
+	if err != nil {
+		return err
+	}
+
+	if w.Name != "" {
+		store.SetOSInfo(w.Name, [...]uint32{1, 0, 0})
+	}
+
+	if w.TempDir != "" {
+		tempDir = w.TempDir
+	}
+
+	w.container = container
+	return nil
 }
 
 // NewSession returns a new [Session] for the LinkedDevice given. If the linked device does not have
@@ -113,44 +150,28 @@ func (w *Gateway) CleanupSession(device LinkedDevice) error {
 	return nil
 }
 
-// Init performs initialization procedures for the Gateway, and is expected to be run before any
-// calls to [Gateway.Session].
-func (w *Gateway) Init() error {
-	container, err := sqlstore.New("sqlite3", w.DBPath, w.logger)
+var (
+	// The default path for storing temporary files.
+	tempDir = os.TempDir()
+)
+
+// CreateTempFile creates a temporary file in the Gateway-wide temporary directory (or the default,
+// system-wide temporary directory, if no Gateway-specific value was set) and returns the absolute
+// path for the file, or an error if none could be created.
+func createTempFile(data []byte) (string, error) {
+	f, err := os.CreateTemp(tempDir, "slidge-whatsapp-*")
 	if err != nil {
-		return err
+		return "", fmt.Errorf("failed creating temporary file: %w", err)
 	}
 
-	if w.Name != "" {
-		store.SetOSInfo(w.Name, [...]uint32{1, 0, 0})
+	defer f.Close()
+	if len(data) > 0 {
+		if n, err := f.Write(data); err != nil {
+			return "", fmt.Errorf("failed writing to temporary file: %w", err)
+		} else if n < len(data) {
+			return "", fmt.Errorf("failed writing to temporary file: incomplete write, want %d, write %d bytes", len(data), n)
+		}
 	}
 
-	// Set up shared HTTP client with less lenient timeouts.
-	w.httpClient = &http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: w.SkipVerifyTLS},
-		},
-	}
-
-	w.container = container
-	return nil
-}
-
-// SetLogHandler specifies the log handling function to use for all [Gateway] and [Session] operations.
-func (w *Gateway) SetLogHandler(h HandleLogFunc) {
-	w.logger = HandleLogFunc(func(level ErrorLevel, message string) {
-		// Don't allow other Goroutines from using this thread, as this might lead to concurrent
-		// use of the GIL, which can lead to crashes.
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-
-		h(level, message)
-	})
-}
-
-// NewGateway returns a new, un-initialized Gateway. This function should always be followed by calls
-// to [Gateway.Init], assuming a valid [Gateway.DBPath] is set.
-func NewGateway() *Gateway {
-	return &Gateway{}
+	return f.Name(), nil
 }

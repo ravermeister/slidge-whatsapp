@@ -42,11 +42,12 @@ class Gateway(BaseGateway):
     def __init__(self):
         super().__init__()
         Path(config.DB_PATH.parent).mkdir(exist_ok=True)
+        (global_config.HOME_DIR / "tmp").mkdir(exist_ok=True)
         self.whatsapp = whatsapp.NewGateway()
         self.whatsapp.SetLogHandler(handle_log)
         self.whatsapp.DBPath = str(config.DB_PATH)
-        self.whatsapp.SkipVerifyTLS = config.SKIP_VERIFY_TLS
         self.whatsapp.Name = "Slidge on " + str(global_config.JID)
+        self.whatsapp.TempDir = str(global_config.HOME_DIR / "tmp")
         self.whatsapp.Init()
 
     async def unregister(self, user: GatewayUser):
