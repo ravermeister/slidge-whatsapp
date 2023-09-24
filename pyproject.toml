@@ -55,11 +55,7 @@ slidge-whatsapp = 'slidge_whatsapp.__main__:main'
 
 [tool.mypy]
 files = ["slidge_whatsapp"]
-exclude = [
-    "tests",
-    "slidge_whatsapp/generated",
-    "watcher.py",
-]
+exclude = "slidge_whatsapp/generated"
 check_untyped_defs = true
 strict = false
 
