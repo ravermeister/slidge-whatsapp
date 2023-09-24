@@ -10,7 +10,7 @@ from typing import Optional, Union
 
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, GatewayUser, global_config
-from slidge.core.contact.roster import ContactIsUser
+from slidge.contact.roster import ContactIsUser
 from slidge.util.types import (
     LegacyAttachment,
     MessageReference,

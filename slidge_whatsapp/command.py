@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Optional
 
-from slidge.core.command import Command, CommandAccess, Form, FormField
+from slidge.command import Command, CommandAccess, Form, FormField
 from slidge.util import is_valid_phone_number
 from slixmpp import JID
 

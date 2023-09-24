@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from slidge.core.muc import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
+from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
 from slixmpp.exceptions import XMPPError
 
 from .generated import whatsapp
