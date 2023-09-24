@@ -1,4 +1,6 @@
+import asyncio
 from asyncio import iscoroutine, run_coroutine_threadsafe
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from functools import wraps
 from os.path import basename
@@ -6,7 +8,7 @@ from pathlib import Path
 from re import search
 from shelve import open
 from threading import Lock
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from linkpreview import Link, LinkPreview
 from slidge import BaseSession, GatewayUser, global_config
@@ -67,7 +69,9 @@ class Session(BaseSession[str, Recipient]):
             except KeyError:
                 device = whatsapp.LinkedDevice()
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
-        self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
+        self._handle_event = make_sync(
+            self.xmpp.thread_pool, self.handle_event, self.xmpp.loop
+        )
         self.whatsapp.SetEventHandler(self._handle_event)
         self._connected = self.xmpp.loop.create_future()
         self.user_phone: Optional[str] = None
@@ -500,7 +504,9 @@ class Attachment(LegacyAttachment):
         )
 
 
-def make_sync(func, loop):
+def make_sync(
+    executor: ThreadPoolExecutor, func: Callable, loop: asyncio.AbstractEventLoop
+):
     """
     Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
     """
@@ -509,7 +515,7 @@ def make_sync(func, loop):
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         if iscoroutine(result):
-            future = run_coroutine_threadsafe(result, loop)
+            future = executor.submit(run_coroutine_threadsafe, result, loop)
             return future.result()
         return result
 

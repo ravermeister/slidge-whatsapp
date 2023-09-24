@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from pathlib import Path
 from shelve import open
@@ -48,6 +49,7 @@ class Gateway(BaseGateway):
         self.whatsapp.SkipVerifyTLS = config.SKIP_VERIFY_TLS
         self.whatsapp.Name = "Slidge on " + str(global_config.JID)
         self.whatsapp.Init()
+        self.thread_pool = ThreadPoolExecutor(4)
 
     async def unregister(self, user: GatewayUser):
         """
@@ -66,6 +68,10 @@ class Gateway(BaseGateway):
             except RuntimeError as err:
                 log.error("Failed to clean up WhatsApp session: %s", err)
         session.user_shelf_path.unlink()
+
+    def shutdown(self):
+        self.thread_pool.shutdown()
+        super().shutdown()
 
 
 def handle_log(level, msg: str):
