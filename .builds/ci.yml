@@ -24,7 +24,8 @@ tasks:
       poetry run c3p0 slidge-whatsapp
       poetry run set_version
       poetry build
-      tar cvf ~/package.tar dist/*
+      cd dist
+      tar cvf ~/package.tar *
   - tests: |
       cd slidge-whatsapp
       poetry run ruff .

@@ -36,24 +36,20 @@ docker run docker.io/nicocool84/slidge-whatsapp
 With [pipx](https://pypa.github.io/pipx/):
 
 ```sh
-pipx install slidge-whatsapp  # for the latest tagged release
+
+# for the latest stable release (if any)
+pipx install slidge-whatsapp
+
+# for the bleeding edge
+pipx install slidge-whatsapp \
+    --pip-args='--extra-index-url https://slidge.im/repo'
+
 slidge-whatsapp --help
-```
-
-For the bleeding edge, download artifacts of
-[this build job](https://builds.sr.ht/~nicoco/slidge-whatsapp/commits/master/ci.yml).
-
-Make sure to install `ffmpeg` for full outgoing media compatibility; for
-example, in Debian/Ubuntu:
-
-```sh
-sudo apt install ffmpeg
 ```
 
 ## Dev
 
 ```sh
-git clone https://git.sr.ht/~nicoco/slidge
 git clone https://git.sr.ht/~nicoco/slidge-whatsapp
 cd slidge-whatsapp
 docker-compose up
