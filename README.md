@@ -47,9 +47,17 @@ pipx install slidge-whatsapp \
 slidge-whatsapp --help
 ```
 
+Make sure to install `ffmpeg` for full outgoing media compatibility; for
+example, in Debian/Ubuntu:
+
+```sh
+sudo apt install ffmpeg
+```
+
 ## Dev
 
 ```sh
+git clone https://git.sr.ht/~nicoco/slidge
 git clone https://git.sr.ht/~nicoco/slidge-whatsapp
 cd slidge-whatsapp
 docker-compose up

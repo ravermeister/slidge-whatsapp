@@ -11,7 +11,7 @@ services:
      - --debug
     network_mode: service:prosody
     volumes:
-      - ../../slidge/slidge:/venv/lib/python/site-packages/slidge
+      - ../slidge/slidge:/venv/lib/python/site-packages/slidge
       - ./slidge_whatsapp:/venv/lib/python/site-packages/slidge_whatsapp
       - ./persistent:/var/lib/slidge
     depends_on:
