@@ -457,7 +457,7 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 	var jid types.JID
 	var err error
 
-	// defer os.Remove(avatarPath)
+	defer os.Remove(avatarPath)
 
 	// Setting the profile picture for the user expects an empty `resourceID`.
 	if resourceID == "" {
@@ -470,8 +470,6 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 	if err = convertImage(&Attachment{Path: avatarPath}); err != nil {
 		return "", fmt.Errorf("Failed converting avatar to JPEG: %s", err)
 	}
-
-	fmt.Printf("Avatar path: %s\n", avatarPath)
 
 	avatar, err := os.ReadFile(avatarPath)
 	if err != nil {
