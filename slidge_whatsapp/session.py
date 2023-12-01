@@ -451,6 +451,14 @@ class Session(BaseSession[str, Recipient]):
         )
         self.whatsapp.SendMessage(message)
 
+    async def on_avatar(
+        self, avatar: bytes, hash: str, mime: str, width: int, height: int
+    ):
+        """
+        Update profile picture in WhatsApp for corresponding avatar change in XMPP.
+        """
+        self.whatsapp.SetAvatar("", await get_bytes_temp(avatar))
+
     async def search(self, form_values: dict[str, str]):
         self.send_gateway_message("Searching on WhatsApp has not been implemented yet.")
 
@@ -547,3 +555,11 @@ async def get_url_temp(client: ClientSession, url: str) -> Optional[str]:
             with fdopen(temp_file, "wb") as f:
                 f.write(await resp.read())
     return temp_path
+
+
+async def get_bytes_temp(buf: bytes) -> Optional[str]:
+    temp_file, temp_path = mkstemp(dir=global_config.HOME_DIR / "tmp")
+    with fdopen(temp_file, "wb") as f:
+        f.write(buf)
+        return temp_path
+    return None

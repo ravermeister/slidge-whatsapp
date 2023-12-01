@@ -166,9 +166,14 @@ func convertImage(attach *Attachment, args ...string) error {
 		return err
 	}
 
-	defer f.Close()
 	img, _, err := image.Decode(f)
 	if err != nil {
+		f.Close()
+		return err
+	}
+
+	f.Close()
+	if f, err = os.Create(attach.Path); err != nil {
 		return err
 	}
 

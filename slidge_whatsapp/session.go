@@ -450,6 +450,37 @@ func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 	return Avatar{}, nil
 }
 
+// SetAvatar updates the profile picture for the Contact or Group JID given; it can also update the
+// profile picture for our own user by providing an empty JID. The unique picture ID is returned,
+// typically used as a cache reference or in providing to future calls for [Session.GetAvatar].
+func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
+	var jid types.JID
+	var err error
+
+	// defer os.Remove(avatarPath)
+
+	// Setting the profile picture for the user expects an empty `resourceID`.
+	if resourceID == "" {
+		jid = types.EmptyJID
+	} else if jid, err = types.ParseJID(resourceID); err != nil {
+		return "", fmt.Errorf("Could not parse JID for avatar: %s", err)
+	}
+
+	// Ensure avatar is in JPEG format, and convert before setting if needed.
+	if err = convertImage(&Attachment{Path: avatarPath}); err != nil {
+		return "", fmt.Errorf("Failed converting avatar to JPEG: %s", err)
+	}
+
+	fmt.Printf("Avatar path: %s\n", avatarPath)
+
+	avatar, err := os.ReadFile(avatarPath)
+	if err != nil {
+		return "", fmt.Errorf("Failed reading avatar: %s", err)
+	}
+
+	return s.client.SetGroupPhoto(jid, avatar)
+}
+
 // SetEventHandler assigns the given handler function for propagating internal events into the Python
 // gateway. Note that the event handler function is not entirely safe to use directly, and all calls
 // should instead be made via the [propagateEvent] function.
