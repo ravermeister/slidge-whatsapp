@@ -93,6 +93,7 @@ class Session(BaseSession[str, Recipient]):
         will thus allow previously authenticated sessions to re-authenticate without needing to pair.
         """
         self.whatsapp.Disconnect()
+        self.logged = False
 
     @ignore_contact_is_user
     async def handle_event(self, event, ptr):
