@@ -92,6 +92,7 @@ class Session(BaseSession[str, Recipient]):
         will thus allow previously authenticated sessions to re-authenticate without needing to pair.
         """
         self.whatsapp.Disconnect()
+        self.logged = False
 
     def __get_connected_status_message(self):
         return f"Connected as {self.user_phone}"
