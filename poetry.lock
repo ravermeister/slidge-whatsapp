@@ -1754,7 +1754,7 @@ slixmpp = "^1.8.4"
 type = "git"
 url = "https://git.sr.ht/~nicoco/slidge"
 reference = "master"
-resolved_reference = "b0d0875b5cd6140bc0434fcfbeed5e4967f31890"
+resolved_reference = "5391972e196448bac09adf986260b512886ec1c8"
 
 [[package]]
 name = "slidge-dev-helpers"
