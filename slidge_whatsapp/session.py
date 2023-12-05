@@ -274,6 +274,8 @@ class Session(BaseSession[str, Recipient]):
             for attachment in attachments:
                 if global_config.NO_UPLOAD_METHOD != "symlink":
                     self.log.debug("Removing '%s' from disk", attachment.path)
+                    if attachment.path is None:
+                        continue
                     Path(attachment.path).unlink(missing_ok=True)
         elif message.Kind == whatsapp.MessageEdit:
             contact.correct(
