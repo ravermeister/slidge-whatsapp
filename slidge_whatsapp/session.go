@@ -457,7 +457,9 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 	var jid types.JID
 	var err error
 
-	defer os.Remove(avatarPath)
+	if avatarPath != "" {
+		defer os.Remove(avatarPath)
+	}
 
 	// Setting the profile picture for the user expects an empty `resourceID`.
 	if resourceID == "" {
@@ -466,17 +468,21 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 		return "", fmt.Errorf("Could not parse JID for avatar: %s", err)
 	}
 
-	// Ensure avatar is in JPEG format, and convert before setting if needed.
-	if err = convertImage(&Attachment{Path: avatarPath}); err != nil {
-		return "", fmt.Errorf("Failed converting avatar to JPEG: %s", err)
-	}
+	if avatarPath == "" {
+		return s.client.SetGroupPhoto(jid, nil)
+	} else {
+		// Ensure avatar is in JPEG format, and convert before setting if needed.
+		if err = convertImage(&Attachment{Path: avatarPath}); err != nil {
+			return "", fmt.Errorf("Failed converting avatar to JPEG: %s", err)
+		}
 
-	avatar, err := os.ReadFile(avatarPath)
-	if err != nil {
-		return "", fmt.Errorf("Failed reading avatar: %s", err)
-	}
+		avatar, err := os.ReadFile(avatarPath)
+		if err != nil {
+			return "", fmt.Errorf("Failed reading avatar: %s", err)
+		}
 
-	return s.client.SetGroupPhoto(jid, avatar)
+		return s.client.SetGroupPhoto(jid, avatar)
+	}
 }
 
 // SetEventHandler assigns the given handler function for propagating internal events into the Python

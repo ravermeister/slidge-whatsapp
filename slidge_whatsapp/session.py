@@ -452,12 +452,17 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SendMessage(message)
 
     async def on_avatar(
-        self, avatar: bytes, hash: str, mime: str, width: int, height: int
-    ):
+        self,
+        bytes_: Optional[bytes],
+        hash_: Optional[str],
+        type_: Optional[str],
+        width: Optional[int],
+        height: Optional[int],
+    ) -> None:
         """
         Update profile picture in WhatsApp for corresponding avatar change in XMPP.
         """
-        self.whatsapp.SetAvatar("", await get_bytes_temp(avatar))
+        self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else '')
 
     async def search(self, form_values: dict[str, str]):
         self.send_gateway_message("Searching on WhatsApp has not been implemented yet.")
