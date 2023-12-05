@@ -23,6 +23,6 @@ tasks:
   - build: |
       cd slidge-whatsapp
       export NAME=$REGISTRY_PREFIX/slidge-whatsapp:$CONTAINER_TAG
-      export ARGS="--platform linux/arm64,linux/amd64 --tag $NAME --target slidge-whatsapp ."
+      export ARGS="--tag $NAME --target slidge-whatsapp ."
       docker buildx build $ARGS
       docker buildx build --push $ARGS || echo "We can't push to docker.io, continuing anyway"
