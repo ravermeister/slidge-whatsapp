@@ -4,9 +4,9 @@ from functools import wraps
 from os import fdopen
 from os.path import basename
 from pathlib import Path
-from tempfile import mkstemp
 from re import search
 from shelve import open
+from tempfile import mkstemp
 from threading import Lock
 from typing import Optional, Union
 
@@ -464,7 +464,7 @@ class Session(BaseSession[str, Recipient]):
         """
         Update profile picture in WhatsApp for corresponding avatar change in XMPP.
         """
-        self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else '')
+        self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else "")
 
     async def search(self, form_values: dict[str, str]):
         self.send_gateway_message("Searching on WhatsApp has not been implemented yet.")
