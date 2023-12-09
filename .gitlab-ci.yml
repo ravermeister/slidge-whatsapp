@@ -3,9 +3,11 @@ stages:
 
 variables:
   SYNC_ONLY: "true"
-  UPSTREAM_REPO_NAME: source-hut
-  UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/slidge-whatsapp
-  UPSTREAM_REPO_BRANCH: master
+  GIT_UPSTREAM_REPO_NAME: source-hut
+  GIT_UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/slidge-whatsapp
+  GIT_UPSTREAM_REPO_BRANCH: master
+  GIT_SYNC_USER: git-sync
+  GIT_SYNC_EMAIL: info@rimkus.it
 
 .imgjob:
   image: docker
@@ -34,13 +36,15 @@ sync_upstream:
     - arm64
   before_script:
     - apk add git
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
   script:
-    - git remote remove "${UPSTREAM_REPO_NAME}"
-    - git remote add "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_URL}"
-    - git fetch "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_BRANCH}"
-    - git merge "${UPSTREAM_REPO_NAME}/${UPSTREAM_REPO_BRANCH}"
+    - git remote remove "${GIT_UPSTREAM_REPO_NAME}"
+    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
+    - git fetch "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_BRANCH}"
+    - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
     - git add .
-    - git commit -m "sync from upstream repo ${UPSTREAM_REPO_URL}"
+    - git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL}"
     - git push origin
   when: manual
   rules:
