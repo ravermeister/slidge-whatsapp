@@ -79,18 +79,18 @@ image_arm64:
         -t "${CI_REGISTRY_IMAGE}:arm64" \
         .
 
-image_arm32:
-  extends: .imgjob
-  stage: create
-  dependencies: []
-  needs: []
-  script:
-    - >
-      docker buildx build --no-cache --force-rm --compress --load \ 
-        --platform "linux/arm32" \
-        --target "slidge-whatsapp" \        
-        -t "${CI_REGISTRY_IMAGE}:arm32" \
-        .
+#image_arm32:
+#  extends: .imgjob
+#  stage: create
+#  dependencies: []
+#  needs: []
+#  script:
+#    - >
+#      docker buildx build --no-cache --force-rm --compress --load \
+#        --platform "linux/arm32" \
+#        --target "slidge-whatsapp" \
+#        -t "${CI_REGISTRY_IMAGE}:arm32" \
+#        .
 
 ### upload to dockerhub
 
@@ -104,5 +104,4 @@ manifest:
   before_script:
     - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
   script:
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm32"
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
