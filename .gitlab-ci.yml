@@ -58,6 +58,22 @@ sync_upstream:
     - if: $SYNC_ONLY == 'true'
       when: always
 
-#build_image:
-#  extends: .imgjob
-#
+build_image:
+  extends: .imgjob
+  script:
+    - docker context create tls-environment >/dev/null
+    - docker buildx create --use tls-environment >/dev/null
+    - >
+      docker buildx build --no-cache --force-rm --compress --load 
+        --platform "linux/arm64"
+        --target "slidge-whatsapp"
+        -t "slidge-whatsapp"
+        -t "slidge-whatsapp:arm64"
+        .
+    - >
+      docker buildx build --no-cache --force-rm --compress --load 
+        --platform "linux/arm32"
+        --target "slidge-whatsapp"
+        -t "slidge-whatsapp"
+        -t "slidge-whatsapp:arm32"
+        .
