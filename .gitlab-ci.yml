@@ -1,5 +1,6 @@
 stages:
   - sync
+  - build
 
 variables:
   SYNC_ONLY: "true"
@@ -52,7 +53,11 @@ sync_upstream:
       else
         echo -e "we are already in sync with ${GIT_UPSTREAM_REPO_URL}"
       fi
-  when: manual
   rules:
+    - when: manual
     - if: $SYNC_ONLY == 'true'
       when: always
+
+#build_image:
+#  extends: .imgjob
+#
