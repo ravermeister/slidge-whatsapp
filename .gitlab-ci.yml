@@ -44,8 +44,14 @@ sync_upstream:
     - git fetch "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_BRANCH}"
     - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
     - git add .
-    - git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL}"
-    - git push origin
+    - export CHANGED_FILES=$(git status -s | wc -l)
+    - >
+      if [ "${CHANGED_FILES}" -gt 0 ]; then
+        git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL}"
+        git push origin
+      else
+        echo -e "we are already in sync with ${GIT_UPSTREAM_REPO_URL}"
+      fi
   when: manual
   rules:
     - if: $SYNC_ONLY == 'true'
