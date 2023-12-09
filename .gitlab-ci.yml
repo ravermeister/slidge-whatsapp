@@ -37,7 +37,11 @@ sync_upstream:
   script:
     - git remote remove "${UPSTREAM_REPO_NAME}"
     - git remote add "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_URL}"
-    - git pull "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_BRANCH}"
+    - git fetch "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_BRANCH}"
+    - git merge "${UPSTREAM_REPO_NAME}/${UPSTREAM_REPO_BRANCH}"
+    - git add .
+    - git commit "sync from upstream repo ${UPSTREAM_REPO_URL}"
+    - git push origin
     - git status
   when: manual
   rules:
