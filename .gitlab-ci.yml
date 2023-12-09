@@ -1,6 +1,7 @@
 stages:
   - sync
-  - build
+  - create
+  - release
 
 variables:
   SYNC_ONLY: "true"
@@ -9,6 +10,7 @@ variables:
   GIT_UPSTREAM_REPO_BRANCH: master
   GIT_SYNC_USER: git-sync
   GIT_SYNC_EMAIL: info@rimkus.it
+  CI_REGISTRY_IMAGE: ravermeister/slidge-whatsapp
 
 .imgjob:
   image: docker
@@ -17,18 +19,19 @@ variables:
       command: ["--experimental"]
   variables:
     DOCKER_DRIVER: overlay2
-    BUILDX_VERSION: v0.10.5
+    BUILDX_VERSION: v0.12.0
     BUILDX_ARCHITECTURE: linux-arm64
   tags:
     - docker
     - arm64
   before_script:
     - mkdir utils
-    - apk add --no-cache make bash curl
+    - apk add --no-cache make git bash curl
     - mkdir -p ~/.docker/cli-plugins
     - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
     - chmod +x ~/.docker/cli-plugins/docker-buildx
 
+### sync upstream repo (not finished yet)
 sync_upstream:
   stage: sync
   image: alpine
@@ -58,9 +61,10 @@ sync_upstream:
     - if: $SYNC_ONLY == 'true'
       when: always
 
-build_image:
+### create arm32/arm64
+image_arm64:
   extends: .imgjob
-  stage: build
+  stage: create
   dependencies: []
   needs: []
   script:
@@ -70,13 +74,37 @@ build_image:
       docker buildx build --no-cache --force-rm --compress --load \
         --platform "linux/arm64" \
         --target "slidge-whatsapp" \
-        -t "slidge-whatsapp" \
-        -t "slidge-whatsapp:arm64" \
+        -t "${slidge-whatsapp}:arm64" \
         .
+
+image_arm32:
+  extends: .imgjob
+  stage: create
+  dependencies: []
+  needs: []
+  before_script:
+    - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  script:
+    - docker context create tls-environment >/dev/null
+    - docker buildx create --use tls-environment >/dev/null
     - >
       docker buildx build --no-cache --force-rm --compress --load \ 
         --platform "linux/arm32" \
-        --target "slidge-whatsapp" \
-        -t "slidge-whatsapp" \
-        -t "slidge-whatsapp:arm32" \
+        --target "slidge-whatsapp" \        
+        -t "${slidge-whatsapp}:arm32" \
         .
+
+### upload to dockerhub
+
+manifest:
+  extends: .imgjob
+  stage: release
+  dependencies: [ ]
+  needs:
+    - image_arm32
+    - image_arm64
+  before_script:
+    - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  script:
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm32"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
