@@ -34,7 +34,7 @@ sync_upstream:
   before_script:
     - apk add git
     - git remote -v
-    - git remote add source-hut
+    - git remote add "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_URL}"
   when: manual
   rules:
     - if: '${SYNC_ONLY} == true'
