@@ -99,7 +99,7 @@ manifest:
   stage: release
   dependencies: [ ]
   needs:
-    - image_arm32
+#    - image_arm32
     - image_arm64
   before_script:
     - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
