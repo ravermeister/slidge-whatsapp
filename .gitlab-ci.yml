@@ -66,17 +66,11 @@ build_image:
   script:
     - docker context create tls-environment >/dev/null
     - docker buildx create --use tls-environment >/dev/null
-    - >
-      docker buildx build --no-cache --force-rm --compress --load \
-        --platform "linux/arm64" \
-        --target "slidge-whatsapp" \
-        -t "slidge-whatsapp" \
-        -t "slidge-whatsapp:arm64" \
-        .
-    - >
-      docker buildx build --no-cache --force-rm --compress --load \ 
-        --platform "linux/arm32" \
-        --target "slidge-whatsapp" \
-        -t "slidge-whatsapp" \
-        -t "slidge-whatsapp:arm32" \
-        .
+    - docker buildx build --no-cache --force-rm --compress --load --platform "linux/arm64" --target "slidge-whatsapp" -t "slidge-whatsapp" -t "slidge-whatsapp:arm64" .
+#    - >
+#      docker buildx build --no-cache --force-rm --compress --load \
+#        --platform "linux/arm32" \
+#        --target "slidge-whatsapp" \
+#        -t "slidge-whatsapp" \
+#        -t "slidge-whatsapp:arm32" \
+#        .
