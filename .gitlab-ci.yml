@@ -1,0 +1,32 @@
+stages:
+  - sync
+
+.imgjob:
+  image: docker
+  services:
+    - name: docker:dind
+      command: ["--experimental"]
+  variables:
+    DOCKER_DRIVER: overlay2
+    BUILDX_VERSION: v0.10.5
+    BUILDX_ARCHITECTURE: linux-arm64
+  tags:
+    - docker
+    - arm64
+  before_script:
+    - mkdir utils
+    - apk add --no-cache make bash curl
+    - mkdir -p ~/.docker/cli-plugins
+    - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
+    - chmod +x ~/.docker/cli-plugins/docker-buildx
+
+sync_upstream:
+  stage: sync
+  image: alpine
+  tags:
+    - docker
+    - arm64
+  before_script:
+    - apk add git
+    - git remote -v
+    - git remote add source-hut https://git.sr.ht/~nicoco/slidge-whatsapp
