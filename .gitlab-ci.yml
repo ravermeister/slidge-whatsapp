@@ -62,6 +62,7 @@ build_image:
   extends: .imgjob
   stage: build
   dependencies: []
+  needs: []
   script:
     - docker context create tls-environment >/dev/null
     - docker buildx create --use tls-environment >/dev/null
