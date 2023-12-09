@@ -34,9 +34,10 @@ sync_upstream:
   before_script:
     - apk add git
   script:
-    - git remote -v
+    - git remote remove "${UPSTREAM_REPO_NAME}"
     - git remote add "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_URL}"
-    - git remote -v
+    - git pull "${UPSTREAM_REPO_NAME}"
+    - git status
   when: manual
   rules:
     - if: $SYNC_ONLY == 'true'
