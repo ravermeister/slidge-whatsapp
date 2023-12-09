@@ -38,5 +38,5 @@ sync_upstream:
     - git remote add "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_URL}"
   when: manual
   rules:
-    - if: '${SYNC_ONLY} == true'
+    - if: $SYNC_ONLY == 'true'
       when: always
