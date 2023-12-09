@@ -61,9 +61,6 @@ sync_upstream:
 build_image:
   extends: .imgjob
   stage: build
-  tags:
-    - docker
-    - arm64
   script:
     - docker context create tls-environment >/dev/null
     - docker buildx create --use tls-environment >/dev/null
