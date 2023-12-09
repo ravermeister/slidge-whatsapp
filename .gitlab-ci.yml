@@ -1,6 +1,11 @@
 stages:
   - sync
 
+variables:
+  SYNC_ONLY: "true"
+  UPSTREAM_REPO_NAME: source-hut
+  UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/slidge-whatsapp
+
 .imgjob:
   image: docker
   services:
@@ -29,4 +34,8 @@ sync_upstream:
   before_script:
     - apk add git
     - git remote -v
-    - git remote add source-hut https://git.sr.ht/~nicoco/slidge-whatsapp
+    - git remote add source-hut
+  when: manual
+  rules:
+    - if: '${SYNC_ONLY} == true'
+      when: always
