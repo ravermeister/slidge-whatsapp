@@ -11,7 +11,11 @@ variables:
   GIT_SYNC_USER: git-sync
   GIT_SYNC_EMAIL: info@rimkus.it
   CI_REGISTRY_IMAGE: ravermeister/slidge-whatsapp
-
+  DOCKER_AUTH_CONFIG: '
+    {
+      "credsStore": "pass"
+    }
+  '
 
 .imgjob:
   image: docker
