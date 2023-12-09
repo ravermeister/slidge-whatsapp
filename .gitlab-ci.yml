@@ -5,6 +5,7 @@ variables:
   SYNC_ONLY: "true"
   UPSTREAM_REPO_NAME: source-hut
   UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/slidge-whatsapp
+  UPSTREAM_REPO_BRANCH: master
 
 .imgjob:
   image: docker
@@ -36,7 +37,7 @@ sync_upstream:
   script:
     - git remote remove "${UPSTREAM_REPO_NAME}"
     - git remote add "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_URL}"
-    - git pull "${UPSTREAM_REPO_NAME}"
+    - git pull "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_BRANCH}"
     - git status
   when: manual
   rules:
