@@ -33,6 +33,7 @@ sync_upstream:
     - arm64
   before_script:
     - apk add git
+  script:
     - git remote -v
     - git remote add "${UPSTREAM_REPO_NAME}" "${UPSTREAM_REPO_URL}"
   when: manual
