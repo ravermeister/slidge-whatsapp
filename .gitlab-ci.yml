@@ -71,8 +71,7 @@ sync_upstream:
     - rm -rf .git
     - cd /opt/downstream_repo
     - git checkout "${CI_COMMIT_BRANCH}"
-    - cp -ru /opt/upstream_repo/* .
-    - cp -ru /opt/upstream_repo/.* .
+    - cp -ru /opt/upstream_repo .
     - >
       if [ -f ".commit_test" ]; then
         rm .commit_test
@@ -137,7 +136,7 @@ manifest:
     - image_arm64
   script:
 #    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-#    - echo "using latest commit >${last_commit_sha}< as version tag"
+#    - echo "using the latest commit >${last_commit_sha}< as version tag"
 #    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:${last_commit_sha}"
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:latest"
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:master"
