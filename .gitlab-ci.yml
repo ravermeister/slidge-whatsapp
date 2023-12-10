@@ -55,7 +55,6 @@ sync_upstream:
   image: alpine
   tags:
     - docker
-    - arm64
   before_script:
     - apk add git
     - git config --global user.name "${GIT_SYNC_USER}"
@@ -65,6 +64,12 @@ sync_upstream:
     - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
     - git fetch "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_BRANCH}"
     - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
+    - >
+      if [ -f ".commit_test" ]; then
+        rm .commit_test
+      else
+        touch .commit_test
+      fi
     - git add .
     - export CHANGED_FILES=$(git status -s | wc -l)
     - >
