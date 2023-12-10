@@ -44,7 +44,9 @@ EOF
   if [ "$(gpg2 -k | wc -l)" -eq 0 ]; then
     exit 1
   fi
-
+  echo "======================"
+  echo "trusting key"
+  echo "======================"
   # Set trust to 5 for the key so we can encrypt without prompt.
   echo -e "5\ny\n" |  gpg2 --command-fd 0 --expert --edit-key info@rimkus.it trust;
 
