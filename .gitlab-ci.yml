@@ -56,7 +56,7 @@ sync_upstream:
   tags:
     - docker
   before_script:
-    - apk add git
+    - apk add git openssh-client
     - git config --global user.name "${GIT_SYNC_USER}"
     - git config --global user.email "${GIT_SYNC_EMAIL}"
     - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
