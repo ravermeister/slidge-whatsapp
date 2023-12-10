@@ -33,12 +33,13 @@ variables:
     - arm64
   before_script:
     - mkdir utils
-    - apk add --no-cache make git bash curl
+    - apk add --no-cache make git bash curl libsecret-tools pass gpg-agent
+    - .gitlab/gen_gpg_key.sh
     - mkdir -p ~/.docker/cli-plugins
     - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
     - chmod +x ~/.docker/cli-plugins/docker-buildx
     - mkdir -p /usr/local/bin
-    - curl -sSLo /usr/local/bin/docker-credential-pass https://github.com/docker/docker-credential-helpers/releases/download/$DOCKER_CREDENTIAL_HELPER_VERSION/docker-credential-pass-$DOCKER_CREDENTIAL_HELPER_VERSION.DOCKER_CREDENTIAL_HELPER_ARCHITECTURE
+    - curl -sSLo /usr/local/bin/docker-credential-pass https://github.com/docker/docker-credential-helpers/releases/download/$DOCKER_CREDENTIAL_HELPER_VERSION/docker-credential-pass-$DOCKER_CREDENTIAL_HELPER_VERSION.$DOCKER_CREDENTIAL_HELPER_ARCHITECTURE
     - chmod +x /usr/local/bin/docker-credential-pass
     - docker context create tls-environment >/dev/null
     - docker buildx create --use tls-environment >/dev/null
