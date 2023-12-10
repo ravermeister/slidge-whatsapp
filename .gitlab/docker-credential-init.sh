@@ -5,9 +5,6 @@ GPG_EMAIL=
 GPG_DESC=
 
 gen_gpg_key() {
-
-  printf "GPG_USER: %s\nGPG_EMAIL: %s\nGPG_DESC: %s\n" "${GPG_USER}" "${GPG_EMAIL}" "${GPG_DESC}"
-
   rm -rf "${HOME}/.gnupg"
   mkdir -m 0700 "${HOME}/.gnupg"
   touch "${HOME}/.gnupg/gpg.conf"
@@ -44,9 +41,7 @@ EOF
   if [ "$(gpg2 -k | wc -l)" -eq 0 ]; then
     exit 1
   fi
-  echo "======================"
-  echo "trusting key"
-  echo "======================"
+
   # Set trust to 5 for the key so we can encrypt without prompt.
   echo -e "5\ny\n" |  gpg2 --batch --command-fd 0 --expert --edit-key "${GPG_EMAIL}" trust;
 
