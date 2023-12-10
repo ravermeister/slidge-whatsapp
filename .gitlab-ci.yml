@@ -67,7 +67,7 @@ sync_upstream:
     - git clone ${CI_REPOSITORY_URL} /opt/downstream_repo
     - export cur_dir=$(pwd)
     - cd /opt/upstream_repo
-    - git checkout "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
+    - git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
     - rm -rf .git
     - cd /opt/downstream_repo
     - git checkout "${CI_COMMIT_BRANCH}"
