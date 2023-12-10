@@ -65,7 +65,7 @@ sync_upstream:
     - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
   script:
     - git clone ${GIT_UPSTREAM_REPO_URL} /opt/upstream_repo
-    - git clone "https://gitlab-sync:${PROJECT_ACCESS_TOKEN}@${CI_SERVER_HOST}/xmpp/slidge-whatsapp.git"
+    - git clone "https://gitlab-sync:${PROJECT_ACCESS_TOKEN}@${CI_SERVER_HOST}/xmpp/slidge-whatsapp.git" /opt/downstream_repo
 #    - git clone ${CI_REPOSITORY_URL} /opt/downstream_repo
     - export cur_dir=$(pwd)
     - cd /opt/upstream_repo
