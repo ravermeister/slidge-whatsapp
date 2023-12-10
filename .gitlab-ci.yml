@@ -61,13 +61,11 @@ sync_upstream:
     - git config --global user.email "${GIT_SYNC_EMAIL}"
     - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
   script:
-    - git remote remove "${GIT_UPSTREAM_REPO_NAME}" || true
-    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
-    - git fetch "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_BRANCH}"
-    - git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
-    - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
-    - git checkout "${CI_COMMIT_BRANCH}"
-    - git merge "${GIT_UPSTREAM_REPO_BRANCH}"
+    - mkdir -p /opt/upstream_repo
+    - git clone ${GIT_UPSTREAM_REPO_URL} /opt/upstream_repo
+    - git checkout "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
+    - cp -ru /opt/upstream_repo/* .
+    - cp -ru /opt/upstream_repo/.* .
     - >
       if [ -f ".commit_test" ]; then
         rm .commit_test
@@ -78,10 +76,8 @@ sync_upstream:
     - export CHANGED_FILES=$(git status -s | wc -l)
     - >
       if [ "${CHANGED_FILES}" -gt 0 ]; then
-        git checkout "${CI_COMMIT_BRANCH}"
-        git merge build
         git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL} with commit ${last_commit_sha}"
-        git push origin
+        git push
       else
         echo -e "we are already in sync with ${GIT_UPSTREAM_REPO_URL}"
       fi
