@@ -31,14 +31,13 @@ cat >keydetails <<EOF
     %echo done
 EOF
 
-#gpg2 --verbose --batch --gen-key keydetails || exit 1
-gpg2 -q --batch --gen-key keydetails || exit 1
+gpg2 --verbose --batch --gen-key keydetails || exit 1
 if [ "$(gpg2 -k | wc -l)" -eq 0 ]; then
   exit 1
 fi
 
 # Set trust to 5 for the key so we can encrypt without prompt.
-echo -e "5\ny\n" |  gpg2 --command-fd 0 --expert --edit-key info@rimkus.it trust >/dev/null;
+echo -e "5\ny\n" |  gpg2 --command-fd 0 --expert --edit-key info@rimkus.it trust;
 
 # Test that the key was created and the permission the trust was set.
 gpg2 -k
