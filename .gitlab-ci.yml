@@ -71,7 +71,7 @@ sync_upstream:
     - rm -rf .git
     - cd /opt/downstream_repo
     - git checkout "${CI_COMMIT_BRANCH}"
-    - cp -ru /opt/upstream_repo .
+    - cp -ru /opt/upstream_repo/ .
     - >
       if [ -f ".commit_test" ]; then
         rm .commit_test
