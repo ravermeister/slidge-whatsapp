@@ -67,11 +67,21 @@ pass_init() {
   pass init "$gpg_key_fingerprint"
 }
 
+usage() {
+  printf "%s <gpg user> <gpg mail> [<gpg key description>]" "$(basename "$0")"
+}
+
 ###########################
 
 GPG_USER="$1"
 GPG_EMAIL="$2"
 GPG_DESC="$3"
+
+if [[ -z "${GPG_USER}" || -z "${GPG_EMAIL}" ]]; then
+  usage
+  exit 1
+fi
+
 if [ -z "${GPG_DESC}" ]; then
   GPG_DESC="generated at $(date '+%Y-%m-%d %H:%I:%S')"
 fi

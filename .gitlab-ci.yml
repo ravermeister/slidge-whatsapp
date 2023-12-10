@@ -29,15 +29,13 @@ variables:
     DOCKER_CREDENTIAL_HELPER_VERSION: v0.8.0
     DOCKER_CREDENTIAL_HELPER_ARCHITECTURE: linux-arm64
     GPG_USER: slidge-ci
-
     GPG_MAIL: info@rimkus.it
   tags:
     - docker
     - arm64
   before_script:
-    - mkdir utils
     - apk add --no-cache make git bash curl libsecret pass gpg-agent
-    - .gitlab/docker-credential-init.sh
+    - .gitlab/docker-credential-init.sh "${GPG_USER}" "${GPG_MAIL}"
     - mkdir -p ~/.docker/cli-plugins
     - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
     - chmod +x ~/.docker/cli-plugins/docker-buildx
