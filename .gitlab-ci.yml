@@ -77,8 +77,9 @@ sync_upstream:
     - git add .
     - export CHANGED_FILES=$(git status -s | wc -l)
     - git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL} with commit ${last_commit_sha}"
-    - git remote add origin_rw $CI_REPOSITORY_URL
-    - git push HEAD:${CI_COMMIT_BRANCH} origin_rw:${CI_COMMIT_BRANCH}
+    - git remote remote origin || true
+    - git remote add origin $CI_REPOSITORY_URL
+    - git push HEAD:${CI_COMMIT_BRANCH} HEAD:${CI_COMMIT_BRANCH}
 #    - >
 #      if [ "${CHANGED_FILES}" -gt 0 ]; then
 #        git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL} with commit ${last_commit_sha}"
