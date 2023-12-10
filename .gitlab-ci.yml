@@ -33,7 +33,7 @@ variables:
     - arm64
   before_script:
     - mkdir utils
-    - apk add --no-cache make git bash curl libsecret-tools pass gpg-agent
+    - apk add --no-cache make git bash curl libsecret pass gpg-agent
     - .gitlab/gen_gpg_key.sh
     - mkdir -p ~/.docker/cli-plugins
     - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
