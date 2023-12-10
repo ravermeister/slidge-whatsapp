@@ -4,7 +4,7 @@ stages:
   - release
 
 variables:
-  SYNC_ONLY: "true"
+  SYNC_ONLY: "false"
   GIT_UPSTREAM_REPO_NAME: source-hut
   GIT_UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/slidge-whatsapp
   GIT_UPSTREAM_REPO_BRANCH: master
@@ -94,6 +94,10 @@ image_arm64:
   stage: create
   dependencies: []
   needs: []
+  rules:
+    - when: always
+    - if: $SYNC_ONLY == 'true'
+      when: never
   script:
     - >
       docker buildx build --no-cache --force-rm --compress --load \
@@ -103,19 +107,6 @@ image_arm64:
         .
     - docker push "${CI_REGISTRY_IMAGE}:arm64"
 
-#image_arm32:
-#  extends: .imgjob
-#  stage: create
-#  dependencies: []
-#  needs: []
-#  script:
-#    - >
-#      docker buildx build --no-cache --force-rm --compress --load \
-#        --platform "linux/arm32" \
-#        --target "slidge-whatsapp" \
-#        -t "${CI_REGISTRY_IMAGE}:arm32" \
-#        .
-
 ### upload to dockerhub
 
 manifest:
@@ -123,8 +114,11 @@ manifest:
   stage: release
   dependencies: [ ]
   needs:
-    #    - image_arm32
     - image_arm64
+  rules:
+    - when: always
+    - if: $SYNC_ONLY == 'true'
+      when: never
   script:
     - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" || true
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
