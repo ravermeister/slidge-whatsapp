@@ -64,11 +64,13 @@ sync_upstream:
     - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
   script:
     - git clone ${GIT_UPSTREAM_REPO_URL} /opt/upstream_repo
+    - git clone ${CI_REPOSITORY_URL} /opt/downstream_repo
     - export cur_dir=$(pwd)
     - cd /opt/upstream_repo
     - git checkout "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
     - rm -rf .git
-    - cd "$cur_dir"
+    - cd /opt/downstream_repo
+    - git checkout "${CI_COMMIT_BRANCH}"
     - cp -ru /opt/upstream_repo/* .
     - cp -ru /opt/upstream_repo/.* .
     - >
@@ -80,8 +82,6 @@ sync_upstream:
     - git add .
     - export CHANGED_FILES=$(git status -s | wc -l)
     - git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL} with commit ${last_commit_sha}"
-    - git remote remove origin || true
-    - git remote add origin $CI_REPOSITORY_URL
     - git remote -v
     - printf "git push %s %s\n" "HEAD:$CI_COMMIT_BRANCH" "origin:$CI_COMMIT_BRANCH"
     - git push HEAD:$CI_COMMIT_BRANCH origin:$CI_COMMIT_BRANCH
