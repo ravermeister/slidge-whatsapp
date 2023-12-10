@@ -11,6 +11,8 @@ variables:
   GIT_SYNC_USER: git-sync
   GIT_SYNC_EMAIL: info@rimkus.it
   CI_REGISTRY_IMAGE: ravermeister/slidge-whatsapp
+  GPG_USER: slidge-ci
+  GPG_MAIL: info@rimkus.it
   DOCKER_AUTH_CONFIG: '
     {
       "credsStore": "pass"
@@ -28,13 +30,14 @@ variables:
     BUILDX_ARCHITECTURE: linux-arm64
     DOCKER_CREDENTIAL_HELPER_VERSION: v0.8.0
     DOCKER_CREDENTIAL_HELPER_ARCHITECTURE: linux-arm64
-    GPG_USER: slidge-ci
-    GPG_MAIL: info@rimkus.it
   tags:
     - docker
     - arm64
   before_script:
-    - apk add --no-cache make git bash curl libsecret pass gpg-agent
+    - apk add --no-cache make git bash curl libsecret pass gpg-agent openssh-client
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - .gitlab/docker-credential-init.sh "${GPG_USER}" "${GPG_MAIL}"
     - mkdir -p ~/.docker/cli-plugins
     - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
@@ -132,11 +135,13 @@ manifest:
   stage: release
   dependencies: [ ]
   needs:
-#    - image_arm32
+    #    - image_arm32
     - image_arm64
   script:
-#    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-#    - echo "using the latest commit >${last_commit_sha}< as version tag"
-#    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:${last_commit_sha}"
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:latest"
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:master"
+    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:master" "${CI_REGISTRY_IMAGE}:arm64"
+    # tag with commit sha
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - echo "using the latest commit >${last_commit_sha}< as version tag"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:${last_commit_sha}" "${CI_REGISTRY_IMAGE}:arm64"
