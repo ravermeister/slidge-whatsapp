@@ -4,7 +4,7 @@ stages:
   - release
 
 variables:
-  SYNC_ONLY: "false"
+#  SYNC_ONLY: "false"
   GIT_UPSTREAM_REPO_NAME: source-hut
   GIT_UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/slidge-whatsapp
   GIT_UPSTREAM_REPO_BRANCH: master
@@ -57,6 +57,10 @@ sync_upstream:
   image: alpine
   tags:
     - docker
+  rules:
+    - when: manual
+    - if: $SYNC_ONLY == 'true'
+      when: always
   before_script:
     - apk add git openssh-client
     - git config --global user.name "${GIT_SYNC_USER}"
@@ -83,10 +87,6 @@ sync_upstream:
       else
         echo -e "we are already in sync with ${GIT_UPSTREAM_REPO_URL}"
       fi
-  rules:
-    - when: manual
-    - if: $SYNC_ONLY == 'true'
-      when: always
 
 ### create arm32/arm64
 image_arm64:
