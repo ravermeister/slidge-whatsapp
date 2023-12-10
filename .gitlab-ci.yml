@@ -58,8 +58,6 @@ sync_upstream:
   image: alpine
   tags:
     - docker
-  variables:
-    CI_JOB_TOKEN: $PROJECT_ACCESS_TOKEN
   before_script:
     - apk add git openssh-client
     - git config --global user.name "${GIT_SYNC_USER}"
@@ -67,7 +65,9 @@ sync_upstream:
     - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
   script:
     - git clone ${GIT_UPSTREAM_REPO_URL} /opt/upstream_repo
-    - git clone ${CI_REPOSITORY_URL} /opt/downstream_repo
+    - printf "clone url >%s<\n" "https://gitlab-sync:${PROJECT_ACCESS_TOKEN}@${CI_SERVER_HOST}${CI_PROJECT_PATH_SLUG}"
+    - git clone "https://gitlab-sync:${PROJECT_ACCESS_TOKEN}@${CI_SERVER_HOST}${CI_PROJECT_PATH_SLUG}" /opt/downstream_repo
+#    - git clone ${CI_REPOSITORY_URL} /opt/downstream_repo
     - export cur_dir=$(pwd)
     - cd /opt/upstream_repo
     - git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
