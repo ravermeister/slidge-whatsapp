@@ -46,6 +46,8 @@ variables:
     - docker buildx create --use tls-environment >/dev/null
     - echo "${DOCKER_AUTH_CONFIG}" > ~/.docker/config.json
     - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  after_script:
+    - docker logout
 
 ### sync upstream repo (not finished yet)
 sync_upstream:
@@ -113,7 +115,8 @@ manifest:
   needs:
 #    - image_arm32
     - image_arm64
-  before_script:
-    - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
   script:
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - echo "using latest commit >${last_commit_sha}< as version tag"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:${last_commit_sha}" "${CI_REGISTRY_IMAGE}:arm64"
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
