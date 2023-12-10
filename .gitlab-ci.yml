@@ -128,6 +128,6 @@ manifest:
   script:
     - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - echo "using latest commit >${last_commit_sha}< as version tag"
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:${last_commit_sha}"
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:latest"
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:arm64" "${CI_REGISTRY_IMAGE}:master"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:${last_commit_sha}" "${CI_REGISTRY_IMAGE}:arm64"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:master" "${CI_REGISTRY_IMAGE}:arm64"
