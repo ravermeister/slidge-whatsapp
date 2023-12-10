@@ -1,9 +1,0 @@
-.mypy_cache
-.ruff_cache
-dist
-persistent
-.idea
-.pytest_cache
-docs/build
-__pycache__
-generated
