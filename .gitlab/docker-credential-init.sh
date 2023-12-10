@@ -27,9 +27,9 @@ gen_gpg_key() {
       Key-Length: 4096
       Subkey-Type: RSA
       Subkey-Length: 4096
-      Name-Real: $GPG_USER
-      Name-Comment: $GPG_DESC
-      Name-Email: $GPG_EMAIL
+      Name-Real: ${GPG_USER}
+      Name-Comment: ${GPG_DESC}
+      Name-Email: ${GPG_EMAIL}
       Expire-Date: 0
       %no-ask-passphrase
       %no-protection
@@ -48,12 +48,10 @@ EOF
   echo "trusting key"
   echo "======================"
   # Set trust to 5 for the key so we can encrypt without prompt.
-  echo -e "5\ny\n" |  gpg2 --command-fd 0 --expert --edit-key info@rimkus.it trust;
+  echo -e "5\ny\n" |  gpg2 --batch --command-fd 0 --expert --edit-key "${GPG_EMAIL}" trust;
 
   # Test that the key was created and the permission the trust was set.
-  gpg2 -k
-
-
+  #gpg2 -k
 
   ## Test the key can encrypt and decrypt.
   #gpg2 -e -a -r info@rimkus.it keydetails
