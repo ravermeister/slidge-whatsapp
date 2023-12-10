@@ -6,7 +6,7 @@ GPG_DESC=
 
 gen_gpg_key() {
 
-  printf "GPG_USER: %s\nGPG_EMAIL: %S\nGPG_DESC: %s\n" "${GPG_USER}" "${GPG_EMAIL}" "${GPG_DESC}"
+  printf "GPG_USER: %s\nGPG_EMAIL: %s\nGPG_DESC: %s\n" "${GPG_USER}" "${GPG_EMAIL}" "${GPG_DESC}"
 
   rm -rf "${HOME}/.gnupg"
   mkdir -m 0700 "${HOME}/.gnupg"
