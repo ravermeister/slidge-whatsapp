@@ -59,10 +59,12 @@ sync_upstream:
     - apk add git
     - git config --global user.name "${GIT_SYNC_USER}"
     - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
   script:
+    - git branch build
+    - git checkout build
     - git remote remove "${GIT_UPSTREAM_REPO_NAME}"
     - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
-    - git remote -v
     - git fetch "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_BRANCH}"
     - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
     - >
@@ -75,7 +77,9 @@ sync_upstream:
     - export CHANGED_FILES=$(git status -s | wc -l)
     - >
       if [ "${CHANGED_FILES}" -gt 0 ]; then
-        git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL}"
+        git checkout "${CI_COMMIT_BRANCH}"
+        git merge build
+        git commit -m "sync from upstream repo ${GIT_UPSTREAM_REPO_URL} with commit ${last_commit_sha}"
         git push origin
       else
         echo -e "we are already in sync with ${GIT_UPSTREAM_REPO_URL}"
