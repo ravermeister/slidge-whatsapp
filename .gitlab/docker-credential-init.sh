@@ -5,6 +5,9 @@ GPG_EMAIL=
 GPG_DESC=
 
 gen_gpg_key() {
+
+  printf "GPG_USER: %s\nGPG_EMAIL: %S\nGPG_DESC: %s\n" "${GPG_USER}" "${GPG_EMAIL}" "${GPG_DESC}"
+
   rm -rf "${HOME}/.gnupg"
   mkdir -m 0700 "${HOME}/.gnupg"
   touch "${HOME}/.gnupg/gpg.conf"
@@ -69,6 +72,9 @@ pass_init() {
 GPG_USER="$1"
 GPG_EMAIL="$2"
 GPG_DESC="$3"
+if [ -z "${GPG_DESC}" ]; then
+  GPG_DESC="generated at $(date '+%Y-%m-%d %H:%I:%S')"
+fi
 
 gen_gpg_key
 pass_init

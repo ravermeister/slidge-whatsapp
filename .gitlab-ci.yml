@@ -37,8 +37,7 @@ variables:
   before_script:
     - mkdir utils
     - apk add --no-cache make git bash curl libsecret pass gpg-agent
-    - ls -l .gitlab/docker-credential-init.sh && chmod +x .gitlab/docker-credential-init.sh && .gitlab/docker-credential-init.sh
-    - pass init "$(gpg2 -k jonny@rimkus.it | head -n2 | tail -n1 | tr -d " ")"
+    - .gitlab/docker-credential-init.sh
     - mkdir -p ~/.docker/cli-plugins
     - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
     - chmod +x ~/.docker/cli-plugins/docker-buildx
