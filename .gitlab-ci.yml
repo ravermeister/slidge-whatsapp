@@ -85,7 +85,7 @@ sync_upstream:
         git commit -m "sync: ${last_commit_sha} - ${last_commit_msg}"        
         git push
       else
-        printf "we are already in sync with %s, latest commit:\n%s - %s\n" \
+        printf "we are already in sync with %s\nlast commit: %s - %s\n" \
           "${GIT_UPSTREAM_REPO_URL}" \
           "${last_commit_sha}" \
           "${last_commit_msg}"
