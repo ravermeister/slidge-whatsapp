@@ -50,7 +50,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
         except RuntimeError:
             # no avatar
-            pass
+            await self.set_avatar(None)
         else:
             if avatar.URL:
                 await self.set_avatar(avatar.URL, avatar.ID)
