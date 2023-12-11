@@ -72,8 +72,8 @@ sync_upstream:
     - export cur_dir=$(pwd)
     - cd /opt/upstream_repo
     - git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
-    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-    - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_BRANCH}")
+    - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_BRANCH}")
     - rm -rf .git
     - cd /opt/downstream_repo
     - git checkout "${CI_COMMIT_BRANCH}"
