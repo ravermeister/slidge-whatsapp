@@ -1,0 +1,60 @@
+# docker in docker template
+.dind:
+  image: docker
+  services:
+    - name: docker:dind
+      command: ["--experimental"]
+  tags:
+    - docker
+    - arm64
+  before_script:
+    - apk add --no-cache make git bash curl libsecret pass gpg-agent openssh-client
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - .gitlab/docker-credential-init.sh "${GPG_USER}" "${GPG_MAIL}"
+    - mkdir -p ~/.docker/cli-plugins
+    - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
+    - chmod +x ~/.docker/cli-plugins/docker-buildx
+    - mkdir -p /usr/local/bin
+    - curl -sSLo /usr/local/bin/docker-credential-pass https://github.com/docker/docker-credential-helpers/releases/download/$DOCKER_CREDENTIAL_HELPER_VERSION/docker-credential-pass-$DOCKER_CREDENTIAL_HELPER_VERSION.$DOCKER_CREDENTIAL_HELPER_ARCHITECTURE
+    - chmod +x /usr/local/bin/docker-credential-pass
+    - docker context create tls-environment >/dev/null
+    - docker buildx create --use tls-environment >/dev/null
+    - echo "${DOCKER_AUTH_CONFIG}" > ~/.docker/config.json
+    - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  after_script:
+    - docker logout
+
+# sync upstream template
+.sync:
+  stage: sync
+  image: alpine
+  tags:
+    - docker
+  before_script:
+    - apk add git openssh-client
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - export cur_dir=$(pwd)
+  script:
+    - export GIT_DOWNSTREAM_REPO_URL="https://gitlab-sync:${PROJECT_ACCESS_TOKEN}@$(echo -n "${CI_REPOSITORY_URL}" | cut -d "@" -f2 )"
+    - git clone "${GIT_DOWNSTREAM_REPO_URL}" /opt/downstream_repo
+    - cd /opt/downstream_repo || exit 1
+    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
+    - git fetch "${GIT_UPSTREAM_REPO_NAME}"
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - git checkout "${CI_COMMIT_BRANCH}"
+    - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}"
+    - git add .
+    - export CHANGED_FILES=$(git status -s | wc -l)
+    - >
+      if [ "${CHANGED_FILES}" -gt 0 ]; then
+        git commit -m "sync: ${last_commit_sha} - ${last_commit_msg}"        
+        git push
+      else
+        printf "we are already in sync with %s\nlast commit: %s - %s\n" \
+          "${GIT_UPSTREAM_REPO_URL}" \
+          "${last_commit_sha}" \
+          "${last_commit_msg}"
+      fi

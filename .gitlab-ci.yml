@@ -3,14 +3,24 @@ stages:
   - create
   - release
 
+include:
+  - local: .gitlab/.gitlab-ci.template.yml
+  - local: .gitlab/.gitlab-ci.build.yml
+
 variables:
+  DOCKER_DRIVER: overlay2
+  BUILDX_VERSION: v0.12.0
+  BUILDX_ARCHITECTURE: linux-arm64
+  DOCKER_CREDENTIAL_HELPER_VERSION: v0.8.0
+  DOCKER_CREDENTIAL_HELPER_ARCHITECTURE: linux-arm64
   SYNC_ONLY: "false"
+  SLIDGE_MODULE: "slidge-whatsapp"
   GIT_UPSTREAM_REPO_NAME: source-hut
-  GIT_UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/slidge-whatsapp
+  GIT_UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/${SLIDGE_MODULE}
   GIT_UPSTREAM_REPO_BRANCH: master
   GIT_SYNC_USER: git-sync
   GIT_SYNC_EMAIL: info@rimkus.it
-  CI_REGISTRY_IMAGE: ravermeister/slidge-whatsapp
+  CI_REGISTRY_IMAGE: ravermeister/${SLIDGE_MODULE}
   GPG_USER: slidge-ci
   GPG_MAIL: info@rimkus.it
   DOCKER_AUTH_CONFIG: '
@@ -19,42 +29,10 @@ variables:
     }
   '
 
-.imgjob:
-  image: docker
-  services:
-    - name: docker:dind
-      command: ["--experimental"]
-  variables:
-    DOCKER_DRIVER: overlay2
-    BUILDX_VERSION: v0.12.0
-    BUILDX_ARCHITECTURE: linux-arm64
-    DOCKER_CREDENTIAL_HELPER_VERSION: v0.8.0
-    DOCKER_CREDENTIAL_HELPER_ARCHITECTURE: linux-arm64
-  tags:
-    - docker
-    - arm64
-  before_script:
-    - apk add --no-cache make git bash curl libsecret pass gpg-agent openssh-client
-    - git config --global user.name "${GIT_SYNC_USER}"
-    - git config --global user.email "${GIT_SYNC_EMAIL}"
-    - .gitlab/docker-credential-init.sh "${GPG_USER}" "${GPG_MAIL}"
-    - mkdir -p ~/.docker/cli-plugins
-    - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
-    - chmod +x ~/.docker/cli-plugins/docker-buildx
-    - mkdir -p /usr/local/bin
-    - curl -sSLo /usr/local/bin/docker-credential-pass https://github.com/docker/docker-credential-helpers/releases/download/$DOCKER_CREDENTIAL_HELPER_VERSION/docker-credential-pass-$DOCKER_CREDENTIAL_HELPER_VERSION.$DOCKER_CREDENTIAL_HELPER_ARCHITECTURE
-    - chmod +x /usr/local/bin/docker-credential-pass
-    - docker context create tls-environment >/dev/null
-    - docker buildx create --use tls-environment >/dev/null
-    - echo "${DOCKER_AUTH_CONFIG}" > ~/.docker/config.json
-    - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
-  after_script:
-    - docker logout
-
-### sync upstream repo (not finished yet)
+### sync upstream repo
 sync_upstream:
   stage: sync
-  image: alpine
+  extends: .sync
   tags:
     - docker
   rules:
@@ -62,74 +40,5 @@ sync_upstream:
       when: always
     - if: $SYNC_ONLY != "true"
       when: manual
-  before_script:
-    - apk add git openssh-client
-    - git config --global user.name "${GIT_SYNC_USER}"
-    - git config --global user.email "${GIT_SYNC_EMAIL}"
-  script:
-    - git clone ${GIT_UPSTREAM_REPO_URL} /opt/upstream_repo
-    - export GIT_DOWNSTREAM_REPO_URL="https://gitlab-sync:${PROJECT_ACCESS_TOKEN}@$(echo -n "${CI_REPOSITORY_URL}" | cut -d "@" -f2 )"
-    - git clone "${GIT_DOWNSTREAM_REPO_URL}" /opt/downstream_repo
-    - export cur_dir=$(pwd)
-    - cd /opt/upstream_repo
-    - git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
-    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_BRANCH}")
-    - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_BRANCH}")
-    - rm -rf .git
-    - cd /opt/downstream_repo
-    - git checkout "${CI_COMMIT_BRANCH}"
-    - cp -au /opt/upstream_repo/. .
-    - git add .
-    - export CHANGED_FILES=$(git status -s | wc -l)
-    - >
-      if [ "${CHANGED_FILES}" -gt 0 ]; then
-        git commit -m "sync: ${last_commit_sha} - ${last_commit_msg}"        
-        git push
-      else
-        printf "we are already in sync with %s\nlast commit: %s - %s\n" \
-          "${GIT_UPSTREAM_REPO_URL}" \
-          "${last_commit_sha}" \
-          "${last_commit_msg}"
-      fi
 
-### create arm32/arm64
-image_arm64:
-  extends: .imgjob
-  stage: create
-  dependencies: []
-  needs: []
-  rules:
-    - if: $SYNC_ONLY == "true"
-      when: never
-    - if: $SYNC_ONLY != "true"
-      when: always
-  script:
-    - >
-      docker buildx build --no-cache --force-rm --compress --load \
-        --platform "linux/arm64" \
-        --target "slidge-whatsapp" \
-        -t "${CI_REGISTRY_IMAGE}:arm64" \
-        .
-    - docker push "${CI_REGISTRY_IMAGE}:arm64"
-
-### upload to dockerhub
-
-manifest:
-  extends: .imgjob
-  stage: release
-  dependencies: [ ]
-  needs:
-    - image_arm64
-  rules:
-    - if: $SYNC_ONLY == "true"
-      when: never
-    - if: $SYNC_ONLY != "true"
-      when: always
-  script:
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:master" "${CI_REGISTRY_IMAGE}:arm64"
-    # tag with commit sha
-    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" || true
-    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-    - echo "using the latest commit >${last_commit_sha}< as version tag"
-    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:${last_commit_sha}" "${CI_REGISTRY_IMAGE}:arm64"
+### see .gitlab/.gitlab-ci.build.yml for docker image creation

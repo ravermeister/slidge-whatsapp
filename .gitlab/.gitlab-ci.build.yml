@@ -1,0 +1,42 @@
+### create arm64
+image_arm64:
+  extends: .dind
+  stage: create
+  dependencies: []
+  needs: []
+  rules:
+    - if: $SYNC_ONLY == "true"
+      when: never
+    - if: $SYNC_ONLY != "true"
+      when: always
+  script:
+    - >
+      docker buildx build --no-cache --force-rm --compress --load \
+        --platform "linux/arm64" \
+        --target "${SLIDGE_MODULE}" \
+        -t "${CI_REGISTRY_IMAGE}:arm64" \
+        .
+    - docker push "${CI_REGISTRY_IMAGE}:arm64"
+
+### add tags to manifest
+manifest:
+  extends: .dind
+  stage: release
+  dependencies: [ ]
+  needs:
+    - image_arm64
+  rules:
+    - if: $SYNC_ONLY == "true"
+      when: never
+    - if: $SYNC_ONLY != "true"
+      when: always
+  script:
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:master" "${CI_REGISTRY_IMAGE}:arm64"
+    # tag with commit sha
+    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" || true
+    - git remote -v
+    - git fetch "${GIT_UPSTREAM_REPO_NAME}"
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - echo "using the latest commit >${last_commit_sha}< as version tag"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:${last_commit_sha}" "${CI_REGISTRY_IMAGE}:arm64"
