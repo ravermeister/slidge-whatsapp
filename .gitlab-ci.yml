@@ -99,9 +99,9 @@ image_arm64:
   needs: []
   rules:
     - if: $SYNC_ONLY == "true"
-      when: always
+      when: never
     - if: $SYNC_ONLY != "true"
-      when: manual
+      when: always
   script:
     - >
       docker buildx build --no-cache --force-rm --compress --load \
@@ -121,9 +121,9 @@ manifest:
     - image_arm64
   rules:
     - if: $SYNC_ONLY == "true"
-      when: always
+      when: never
     - if: $SYNC_ONLY != "true"
-      when: manual
+      when: always
   script:
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:master" "${CI_REGISTRY_IMAGE}:arm64"
