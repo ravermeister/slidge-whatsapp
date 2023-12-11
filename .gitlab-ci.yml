@@ -72,7 +72,7 @@ sync_upstream:
     - export cur_dir=$(pwd)
     - cd /opt/upstream_repo
     - git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
-    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_BRANCH}") && git rev-parse --short "${GIT_UPSTREAM_REPO_BRANCH}"
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_BRANCH}")
     - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_BRANCH}")
     - rm -rf .git
     - cd /opt/downstream_repo
@@ -86,8 +86,8 @@ sync_upstream:
         git push
       else
         printf "we are already in sync with %s, latest commit:\n%s - %s\n" \
-          "${GIT_UPSTREAM_REPO_URL}"
-          "${last_commit_sha}"
+          "${GIT_UPSTREAM_REPO_URL}" \
+          "${last_commit_sha}" \
           "${last_commit_msg}"
       fi
 
