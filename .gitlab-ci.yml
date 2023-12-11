@@ -58,21 +58,22 @@ sync_upstream:
   tags:
     - docker
   rules:
-    - when: manual
-    - if: $SYNC_ONLY == 'true'
+    - if: $SYNC_ONLY == "true"
       when: always
+    - if: $SYNC_ONLY != "true"
+      when: manual
   before_script:
     - apk add git openssh-client
     - git config --global user.name "${GIT_SYNC_USER}"
     - git config --global user.email "${GIT_SYNC_EMAIL}"
-    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-    - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
   script:
     - git clone ${GIT_UPSTREAM_REPO_URL} /opt/upstream_repo
     - git clone "https://gitlab-sync:${PROJECT_ACCESS_TOKEN}@${CI_SERVER_HOST}/xmpp/slidge-whatsapp.git" /opt/downstream_repo
     - export cur_dir=$(pwd)
     - cd /opt/upstream_repo
     - git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - rm -rf .git
     - cd /opt/downstream_repo
     - git checkout "${CI_COMMIT_BRANCH}"
@@ -81,11 +82,13 @@ sync_upstream:
     - export CHANGED_FILES=$(git status -s | wc -l)
     - >
       if [ "${CHANGED_FILES}" -gt 0 ]; then
-        git commit -m "${last_commit_msg}"
-        git remote -v
+        git commit -m "${last_commit_msg}"        
         git push
       else
-        echo -e "we are already in sync with ${GIT_UPSTREAM_REPO_URL}"
+        printf "we are already in sync with %s, latest commit:\n%s - %s\n" \
+          "${GIT_UPSTREAM_REPO_URL}"
+          "${last_commit_sha}"
+          "${last_commit_msg}"
       fi
 
 ### create arm32/arm64
@@ -95,9 +98,10 @@ image_arm64:
   dependencies: []
   needs: []
   rules:
-    - when: always
-    - if: $SYNC_ONLY == 'true'
-      when: never
+    - if: $SYNC_ONLY == "true"
+      when: always
+    - if: $SYNC_ONLY != "true"
+      when: manual
   script:
     - >
       docker buildx build --no-cache --force-rm --compress --load \
@@ -116,14 +120,15 @@ manifest:
   needs:
     - image_arm64
   rules:
-    - when: always
-    - if: $SYNC_ONLY == 'true'
-      when: never
+    - if: $SYNC_ONLY == "true"
+      when: always
+    - if: $SYNC_ONLY != "true"
+      when: manual
   script:
-    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" || true
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:master" "${CI_REGISTRY_IMAGE}:arm64"
     # tag with commit sha
+    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" || true
     - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - echo "using the latest commit >${last_commit_sha}< as version tag"
     - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:${last_commit_sha}" "${CI_REGISTRY_IMAGE}:arm64"
