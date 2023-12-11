@@ -49,7 +49,7 @@ EOF
   #gpg2 -k
 
   ## Test the key can encrypt and decrypt.
-  #gpg2 -e -a -r info@rimkus.it keydetails
+  #gpg2 -e -a -r ${GPG_EMAIL} keydetails
   #
   ## Delete the options and decrypt the original to stdout.
   #rm keydetails

@@ -82,7 +82,7 @@ sync_upstream:
     - export CHANGED_FILES=$(git status -s | wc -l)
     - >
       if [ "${CHANGED_FILES}" -gt 0 ]; then
-        git commit -m "${last_commit_msg}"        
+        git commit -m "sync: ${last_commit_sha} - ${last_commit_msg}"        
         git push
       else
         printf "we are already in sync with %s, latest commit:\n%s - %s\n" \
