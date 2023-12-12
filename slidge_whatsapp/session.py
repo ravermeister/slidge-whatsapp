@@ -236,6 +236,10 @@ class Session(BaseSession[str, Recipient]):
             contact.react(
                 legacy_msg_id=message.ID, emojis=emojis, carbon=message.IsCarbon
             )
+        for receipt in message.Receipts:
+            await self.handle_receipt(receipt)
+        for reaction in message.Reactions:
+            await self.handle_message(reaction)
 
     async def on_text(
         self,
@@ -370,7 +374,7 @@ class Session(BaseSession[str, Recipient]):
         Slidge core makes sure that the emojis parameter is always empty or a
         *single* emoji.
         """
-        is_carbon = self.__is_carbon(c, legacy_msg_id)
+        is_carbon = self.message_is_carbon(c, legacy_msg_id)
         message_sender_id = (
             c.get_message_sender(legacy_msg_id)
             if not is_carbon and isinstance(c, MUC)
@@ -475,6 +479,12 @@ class Session(BaseSession[str, Recipient]):
             items=[{"phone": cast(str, phone), "jid": contact.jid.bare}],
         )
 
+    def message_is_carbon(self, c: Recipient, legacy_msg_id: str):
+        if c.is_group:
+            return legacy_msg_id in self.muc_sent_msg_ids
+        else:
+            return legacy_msg_id in self.sent
+
     def __get_connected_status_message(self):
         return f"Connected as {self.user_phone}"
 
@@ -551,12 +561,6 @@ class Session(BaseSession[str, Recipient]):
             return await muc.get_participant_by_legacy_id(legacy_contact_id)
         else:
             return await self.contacts.by_legacy_id(legacy_contact_id)
-
-    def __is_carbon(self, c: Recipient, legacy_msg_id: str):
-        if c.is_group:
-            return legacy_msg_id in self.muc_sent_msg_ids
-        else:
-            return legacy_msg_id in self.sent
 
 
 class Attachment(LegacyAttachment):
