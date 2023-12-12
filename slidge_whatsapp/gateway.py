@@ -50,6 +50,13 @@ class Gateway(BaseGateway):
         self.whatsapp.TempDir = str(global_config.HOME_DIR / "tmp")
         self.whatsapp.Init()
 
+    async def validate(self, user_jid, registration_form):
+        """
+        Validate registration form. A no-op for WhatsApp, as actual registration takes place
+        after in-band registration commands complete.
+        """
+        pass
+
     async def unregister(self, user: GatewayUser):
         """
         Logout from the active WhatsApp session. This will also force a remote log-out, and thus
