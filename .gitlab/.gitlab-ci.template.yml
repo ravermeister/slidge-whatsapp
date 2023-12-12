@@ -51,7 +51,7 @@
     - git add .
     - >
       if [[ "${current_commit_msg}" != "${sync_commit_msg}" ]]; then
-        git commit -m "${sync_commit_msg}"
+        git commit -m "${sync_commit_msg}" || true
         git push
       else
         printf "we are already in sync with %s\nlast commit: %s - %s\n" \
