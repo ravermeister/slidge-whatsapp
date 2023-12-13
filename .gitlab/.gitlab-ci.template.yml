@@ -49,16 +49,16 @@
     - export DOWNSTREAM_COMMIT_SHA="$(git branch --contains ${LAST_UPSTREAM_COMMIT_SHA} 2>/dev/null | cut -d " " -f2)"
     - >
       if [ "${DOWNSTREAM_COMMIT_SHA}" != "${LAST_UPSTREAM_COMMIT_SHA}" ]; then
-        printf "we need to sync!\nupstream commit > %s\ndownstream commit > %s\n" \          
-          "${LAST_UPSTREAM_COMMIT_SHA}" \
-          "${DOWNSTREAM_COMMIT_SHA}"
+        echo "we need to sync"
+        echo "upstream commit > ${LAST_UPSTREAM_COMMIT_SHA}"
+        echo "downstream commit > ${DOWNSTREAM_COMMIT_SHA}"
       
         git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${SYNC_COMMIT_MSG}" --no-ff
         git add .
         git commit -m "${SYNC_COMMIT_MSG}" || true
         git push
       else
-          printf "we are already in sync\nupstream commit > %s\ndownstream commit > %s\n" \          
-          "${LAST_UPSTREAM_COMMIT_SHA}" \
-          "${DOWNSTREAM_COMMIT_SHA}"
+        echo "we are already in sync"
+        echo "upstream commit > ${LAST_UPSTREAM_COMMIT_SHA}"
+        echo "downstream commit > ${DOWNSTREAM_COMMIT_SHA}"
       fi
