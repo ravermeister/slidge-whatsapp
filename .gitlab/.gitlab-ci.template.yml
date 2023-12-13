@@ -44,18 +44,21 @@
     - git fetch "${GIT_UPSTREAM_REPO_NAME}"
     - export LAST_UPSTREAM_COMMIT_SHA=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - export LAST_UPSTREAM_COMMIT_MSG=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-    - export sync_commit_msg="sync ${LAST_UPSTREAM_COMMIT_SHA} - ${LAST_UPSTREAM_COMMIT_MSG}"
+    - export SYNC_COMMIT_MSG="sync ${LAST_UPSTREAM_COMMIT_SHA} - ${LAST_UPSTREAM_COMMIT_MSG}"
     - git checkout "${CI_COMMIT_BRANCH}"
     - export DOWNSTREAM_COMMIT_SHA="$(git log ${CI_COMMIT_BRANCH} --pretty=%B | grep "${LAST_UPSTREAM_COMMIT_SHA}")"
     - >
       if [ "${DOWNSTREAM_COMMIT_SHA}" != "${LAST_UPSTREAM_COMMIT_SHA}" ]; then
-        git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${sync_commit_msg}" --no-ff
+        printf "we need to sync!\nupstream commit: %s\ndownstream commit: %s" \          
+          "${LAST_UPSTREAM_COMMIT_SHA}" \
+          "${DOWNSTREAM_COMMIT_SHA}"
+      
+        git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${SYNC_COMMIT_MSG}" --no-ff
         git add .
-        git commit -m "${sync_commit_msg}" || true
+        git commit -m "${SYNC_COMMIT_MSG}" || true
         git push
       else
-        printf "we are already in sync with %s\nlast commit: %s - %s\n" \
-          "${GIT_UPSTREAM_REPO_URL}" \
-          "${last_commit_sha}" \
-          "${last_commit_msg}"
+          printf "we are already in sync\nupstream commit: %s\ndownstream commit: %s" \          
+          "${LAST_UPSTREAM_COMMIT_SHA}" \
+          "${DOWNSTREAM_COMMIT_SHA}"
       fi
