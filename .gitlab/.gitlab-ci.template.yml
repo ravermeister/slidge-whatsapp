@@ -44,9 +44,9 @@
     - git fetch "${GIT_UPSTREAM_REPO_NAME}"
     - export LAST_UPSTREAM_COMMIT_SHA=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - export LAST_UPSTREAM_COMMIT_MSG=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-    - export SYNC_COMMIT_MSG="sync ${LAST_UPSTREAM_COMMIT_SHA} - ${LAST_UPSTREAM_COMMIT_MSG}"
+    - export SYNC_COMMIT_MSG="[sync] ${LAST_UPSTREAM_COMMIT_SHA} - ${LAST_UPSTREAM_COMMIT_MSG}"
     - git checkout "${CI_COMMIT_BRANCH}"
-    - export DOWNSTREAM_COMMIT_SHA="$(git log ${CI_COMMIT_BRANCH} --pretty=%B | grep "${LAST_UPSTREAM_COMMIT_SHA}")"
+    - export DOWNSTREAM_COMMIT_SHA="$(git branch --contains ${LAST_UPSTREAM_COMMIT_SHA} 2>/dev/null | cut -d " " -f2)"
     - >
       if [ "${DOWNSTREAM_COMMIT_SHA}" != "${LAST_UPSTREAM_COMMIT_SHA}" ]; then
         printf "we need to sync!\nupstream commit > %s\ndownstream commit > %s\n" \          
