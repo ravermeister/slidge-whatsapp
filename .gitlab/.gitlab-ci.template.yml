@@ -48,7 +48,7 @@
     - git checkout "${CI_COMMIT_BRANCH}"
     - export current_commit_msg=$(git log -1 --pretty=%B "${CI_COMMIT_BRANCH}")
     - printf "current_commit_msg >%s\nlast_commit_msg >%s\n" "${current_commit_msg}" "${last_commit_msg}"
-    - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${sync_commit_msg}" --no-off
+    - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${sync_commit_msg}" --no-ff
     - git add .
     - >
       if [[ "${current_commit_msg}" != "${sync_commit_msg}" ]]; then
