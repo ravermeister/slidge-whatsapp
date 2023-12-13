@@ -42,16 +42,15 @@
     - cd /opt/downstream_repo || exit 1
     - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
     - git fetch "${GIT_UPSTREAM_REPO_NAME}"
-    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-    - export last_commit_msg=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
-    - export sync_commit_msg="sync ${last_commit_sha} - ${last_commit_msg}"    
+    - export LAST_UPSTREAM_COMMIT_SHA=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - export LAST_UPSTREAM_COMMIT_MSG=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - export sync_commit_msg="sync ${LAST_UPSTREAM_COMMIT_SHA} - ${LAST_UPSTREAM_COMMIT_MSG}"
     - git checkout "${CI_COMMIT_BRANCH}"
-    - export current_commit_msg=$(git log -1 --pretty=%B "${CI_COMMIT_BRANCH}")
-    - printf "current_commit_msg >%s\nlast_commit_msg >%s\n" "${current_commit_msg}" "${last_commit_msg}"
-    - git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${sync_commit_msg}" --no-ff
-    - git add .
+    - export DOWNSTREAM_COMMIT_SHA="$(git log ${CI_COMMIT_BRANCH} --pretty=%B | grep "${LAST_UPSTREAM_COMMIT_SHA}")"
     - >
-      if [[ "${current_commit_msg}" != "${sync_commit_msg}" ]]; then
+      if [ "${DOWNSTREAM_COMMIT_SHA}" != "${LAST_UPSTREAM_COMMIT_SHA}" ]; then
+        git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${sync_commit_msg}" --no-ff
+        git add .
         git commit -m "${sync_commit_msg}" || true
         git push
       else
@@ -59,4 +58,4 @@
           "${GIT_UPSTREAM_REPO_URL}" \
           "${last_commit_sha}" \
           "${last_commit_msg}"
-      fi 
+      fi
