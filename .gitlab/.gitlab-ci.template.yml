@@ -49,7 +49,7 @@
     - export DOWNSTREAM_COMMIT_SHA="$(git log ${CI_COMMIT_BRANCH} --pretty=%B | grep "${LAST_UPSTREAM_COMMIT_SHA}")"
     - >
       if [ "${DOWNSTREAM_COMMIT_SHA}" != "${LAST_UPSTREAM_COMMIT_SHA}" ]; then
-        printf "we need to sync!\nupstream commit: %s\ndownstream commit: %s" \          
+        printf "we need to sync!\nupstream commit > %s\ndownstream commit > %s\n" \          
           "${LAST_UPSTREAM_COMMIT_SHA}" \
           "${DOWNSTREAM_COMMIT_SHA}"
       
@@ -58,7 +58,7 @@
         git commit -m "${SYNC_COMMIT_MSG}" || true
         git push
       else
-          printf "we are already in sync\nupstream commit: %s\ndownstream commit: %s" \          
+          printf "we are already in sync\nupstream commit > %s\ndownstream commit > %s\n" \          
           "${LAST_UPSTREAM_COMMIT_SHA}" \
           "${DOWNSTREAM_COMMIT_SHA}"
       fi
