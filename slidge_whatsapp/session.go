@@ -435,6 +435,10 @@ func (s *Session) GetGroups() ([]Group, error) {
 // is also given, GetAvatar will return an empty [Avatar] instance with no error if the remote state
 // for the given ID has not changed.
 func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
+	if s.client == nil || s.client.Store.ID == nil {
+		return Avatar{}, fmt.Errorf("Cannot get avatar for unauthenticated session")
+	}
+
 	jid, err := types.ParseJID(resourceID)
 	if err != nil {
 		return Avatar{}, fmt.Errorf("Could not parse JID for avatar: %s", err)
@@ -454,6 +458,10 @@ func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 // profile picture for our own user by providing an empty JID. The unique picture ID is returned,
 // typically used as a cache reference or in providing to future calls for [Session.GetAvatar].
 func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
+	if s.client == nil || s.client.Store.ID == nil {
+		return "", fmt.Errorf("Cannot set avatar for unauthenticated session")
+	}
+
 	var jid types.JID
 	var err error
 
@@ -483,6 +491,27 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 
 		return s.client.SetGroupPhoto(jid, avatar)
 	}
+}
+
+// FindContact attempts to check for a registered contact on WhatsApp corresponding to the given
+// phone number, returning a concrete instance if found; typically, only the contact JID is set. No
+// error is returned if no contact was found, but any unexpected errors will otherwise be returned
+// directly.
+func (s *Session) FindContact(phone string) (Contact, error) {
+	if s.client == nil || s.client.Store.ID == nil {
+		return Contact{}, fmt.Errorf("Cannot find contact for unauthenticated session")
+	}
+
+	resp, err := s.client.IsOnWhatsApp([]string{phone})
+	if err != nil {
+		return Contact{}, fmt.Errorf("Failed looking up contact '%s': %s", phone, err)
+	} else if len(resp) != 1 {
+		return Contact{}, fmt.Errorf("Failed looking up contact '%s': invalid response", phone)
+	} else if !resp[0].IsIn || resp[0].JID.IsEmpty() {
+		return Contact{}, nil
+	}
+
+	return Contact{JID: resp[0].JID.ToNonAD().String()}, nil
 }
 
 // SetEventHandler assigns the given handler function for propagating internal events into the Python
