@@ -79,8 +79,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             participant = await self.get_participant_by_legacy_id(info.Subject.SetByJID)
             if name := participant.nickname:
                 self.subject_setter = name
-        for ptr in info.Participants:
-            data = whatsapp.GroupParticipant(handle=ptr)
+        for data in info.Participants:
             participant = await self.get_participant_by_legacy_id(data.JID)
             if data.Action == whatsapp.GroupParticipantActionRemove:
                 self.remove_participant(participant)
@@ -113,8 +112,8 @@ class Bookmarks(LegacyBookmarks[str, MUC]):
 
     async def fill(self):
         groups = self.session.whatsapp.GetGroups()
-        for ptr in groups:
-            await self.add_whatsapp_group(whatsapp.Group(handle=ptr))
+        for group in groups:
+            await self.add_whatsapp_group(group)
         self.__filled = True
 
     async def add_whatsapp_group(self, data: whatsapp.Group):
