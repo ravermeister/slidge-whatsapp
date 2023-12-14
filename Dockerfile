@@ -27,7 +27,7 @@ RUN ln -s /venv/lib/python$PYTHONVER /venv/lib/python
 WORKDIR /build
 
 ENV GOBIN="/usr/local/bin"
-RUN go install github.com/go-python/gopy@latest
+RUN go install github.com/go-python/gopy@v0.4.7
 RUN go install golang.org/x/tools/cmd/goimports@latest
 
 ENV PATH="/root/.local/bin:$PATH"
