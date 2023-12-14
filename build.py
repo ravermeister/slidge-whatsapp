@@ -7,7 +7,7 @@ from pathlib import Path
 
 def main():
     os.environ["PATH"] = os.path.expanduser("~/go/bin") + ":" + os.environ["PATH"]
-    subprocess.run(["go", "install", "github.com/go-python/gopy@latest"], check=True)
+    subprocess.run(["go", "install", "github.com/go-python/gopy@v0.4.7"], check=True)
     subprocess.run(
         ["go", "install", "golang.org/x/tools/cmd/goimports@latest"], check=True
     )
