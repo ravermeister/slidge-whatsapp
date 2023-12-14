@@ -38,8 +38,8 @@ class Roster(LegacyRoster[str, Contact]):
         local roster.
         """
         contacts = self.session.whatsapp.GetContacts(refresh=config.ALWAYS_SYNC_ROSTER)
-        for ptr in contacts:
-            await self.add_whatsapp_contact(whatsapp.Contact(handle=ptr))
+        for contact in contacts:
+            await self.add_whatsapp_contact(contact)
 
     async def add_whatsapp_contact(self, data: whatsapp.Contact):
         """

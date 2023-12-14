@@ -493,10 +493,7 @@ class Attachment(LegacyAttachment):
     def convert_list(
         attachments: list, muc: Optional["MUC"] = None
     ) -> list["Attachment"]:
-        return [
-            Attachment.convert(whatsapp.Attachment(handle=ptr), muc)
-            for ptr in attachments
-        ]
+        return [Attachment.convert(attachment, muc) for attachment in attachments]
 
     @staticmethod
     def convert(
