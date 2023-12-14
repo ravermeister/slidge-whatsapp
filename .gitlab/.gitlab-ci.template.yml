@@ -41,24 +41,22 @@
     - git clone "${GIT_DOWNSTREAM_REPO_URL}" /opt/downstream_repo
     - cd /opt/downstream_repo || exit 1
     - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}"
-    - git fetch "${GIT_UPSTREAM_REPO_NAME}"
+    - git fetch "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_BRANCH}"
     - export LAST_UPSTREAM_COMMIT_SHA=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - export LAST_UPSTREAM_COMMIT_MSG=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - export SYNC_COMMIT_MSG="[sync] ${LAST_UPSTREAM_COMMIT_SHA} - ${LAST_UPSTREAM_COMMIT_MSG}"
-    - git checkout "${CI_COMMIT_BRANCH}"
-    - export DOWNSTREAM_COMMIT_SHA="$(git branch --contains ${LAST_UPSTREAM_COMMIT_SHA} 2>/dev/null | cut -d " " -f2)"
+    - git checkout "${CI_COMMIT_BRANCH}" >/dev/null
+    - export CONTAINING_BRANCH_NAME="$(git branch --contains ${LAST_UPSTREAM_COMMIT_SHA} 2>/dev/null | cut -d " " -f2)"
     - >
-      if [ "${DOWNSTREAM_COMMIT_SHA}" != "${LAST_UPSTREAM_COMMIT_SHA}" ]; then
+      if [ "${CONTAINING_BRANCH_NAME}" != "${CI_COMMIT_BRANCH}" ]; then
         echo "we need to sync"
-        echo "upstream commit > ${LAST_UPSTREAM_COMMIT_SHA}"
-        echo "downstream commit > ${DOWNSTREAM_COMMIT_SHA}"
-      
+        echo "${LAST_UPSTREAM_COMMIT_SHA} is not in ${CI_COMMIT_BRANCH}"
+              
         git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${SYNC_COMMIT_MSG}" --no-ff
         git add .
         git commit -m "${SYNC_COMMIT_MSG}" || true
         git push
       else
         echo "we are already in sync"
-        echo "upstream commit > ${LAST_UPSTREAM_COMMIT_SHA}"
-        echo "downstream commit > ${DOWNSTREAM_COMMIT_SHA}"
+        echo "${LAST_UPSTREAM_COMMIT_SHA} is already merged into ${CI_COMMIT_BRANCH}"
       fi
