@@ -45,18 +45,40 @@
     - export LAST_UPSTREAM_COMMIT_SHA=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - export LAST_UPSTREAM_COMMIT_MSG=$(git log -1 --pretty=%B "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
     - export SYNC_COMMIT_MSG="[sync] ${LAST_UPSTREAM_COMMIT_SHA} - ${LAST_UPSTREAM_COMMIT_MSG}"
+    # sync current pipeline branch
     - git checkout "${CI_COMMIT_BRANCH}" >/dev/null
     - export CONTAINING_BRANCH_NAME="$(git branch --contains ${LAST_UPSTREAM_COMMIT_SHA} 2>/dev/null | cut -d " " -f2)"
     - >
       if [ "${CONTAINING_BRANCH_NAME}" != "${CI_COMMIT_BRANCH}" ]; then
         echo "we need to sync"
-        echo "${LAST_UPSTREAM_COMMIT_SHA} is not in ${CI_COMMIT_BRANCH}"
-              
+        echo "${LAST_UPSTREAM_COMMIT_SHA} is not in ${CI_COMMIT_BRANCH}"              
         git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${SYNC_COMMIT_MSG}" --no-ff
         git add .
         git commit -m "${SYNC_COMMIT_MSG}" || true
-        git push
+        export DO_PUSH="true"        
       else
         echo "we are already in sync"
         echo "${LAST_UPSTREAM_COMMIT_SHA} is already merged into ${CI_COMMIT_BRANCH}"
+      fi
+    # sync with fast-forward origin/GIT_UPSTREAM_REPO_BRANCH and GIT_UPSTREAM_REPO_NAME/GIT_UPSTREAM_REPO_BRANCH
+    - >
+      if [ "${GIT_UPSTREAM_REPO_BRANCH}" != "${CI_COMMIT_BRANCH}" ]; then        
+        git checkout "${GIT_UPSTREAM_REPO_BRANCH}" >/dev/null
+        export CONTAINING_BRANCH_NAME="$(git branch --contains ${GIT_UPSTREAM_REPO_BRANCH} 2>/dev/null | cut -d " " -f2)"      
+        if [ "${CONTAINING_BRANCH_NAME}" != "${CI_COMMIT_BRANCH}" ]; then
+          echo "we need to sync"
+          echo "${LAST_UPSTREAM_COMMIT_SHA} is not in ${CI_COMMIT_BRANCH}"              
+          git merge "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}" -m "${SYNC_COMMIT_MSG}" --ff
+          git add .
+          git commit -m "${SYNC_COMMIT_MSG}" || true
+          export DO_PUSH="true"
+        else
+          echo "we are already in sync"
+          echo "${LAST_UPSTREAM_COMMIT_SHA} is already merged into ${CI_COMMIT_BRANCH}"
+        fi
+      fi
+    # push changes
+    - >
+      if [ "${DO_PUSH}" = "true" ]; then
+        git push
       fi
