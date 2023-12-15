@@ -26,7 +26,7 @@ sync_upstream() {
     git checkout --track "origin/${REMOTE_BRANCH}"
   fi
 
-  LAST_UPSTREAM_SHA_CONTAINING_BRANCH_NAME="$(git branch --contains "${LAST_UPSTREAM_COMMIT_SHA}" 2>/dev/null | cut -d " " -f2)"
+  LAST_UPSTREAM_SHA_CONTAINING_BRANCH_NAME="$(git branch --contains "${LAST_UPSTREAM_COMMIT_SHA}" 2>/dev/null | grep "^\*" | cut -d " " -f2)"
   if [ "${LAST_UPSTREAM_SHA_CONTAINING_BRANCH_NAME}" != "${REMOTE_BRANCH}" ]; then
     printf "we need to sync,\n%s is not in %s\n" \
       "${LAST_UPSTREAM_COMMIT_SHA}" \
