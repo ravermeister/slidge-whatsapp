@@ -34,7 +34,7 @@ sync_upstream() {
   git push
   else
     echo "we are already in sync"
-    echo "${LAST_UPSTREAM_COMMIT_SHA} is already merged into ${CI_COMMIT_BRANCH}"
+    echo "${LAST_UPSTREAM_COMMIT_SHA} is already merged into ${REMOTE_BRANCH}"
   fi
 }
 
