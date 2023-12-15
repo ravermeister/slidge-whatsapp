@@ -39,7 +39,7 @@ sync_upstream() {
 }
 
 validate_args() {
-  if [ -z "${REMOTE_URL}" ] || [ "${REMOTE_BRANCH}" ] || [ "${UPSTREAM_URL}" ] || [ "${UPSTREAM_BRANCH}" ]; then
+  if [ -z "${REMOTE_URL}" ] || [ -z "${REMOTE_BRANCH}" ] || [ -z "${UPSTREAM_URL}" ] || [ -z "${UPSTREAM_BRANCH}" ]; then
     printf "missing required argument\n" >&2
     return 1
   fi
