@@ -41,8 +41,8 @@ sync_upstream() {
   fi
 
   printf "removing temp repo folder %s\n" "${CLONE_DIR}"
-  rm -rf "${CLONE_DIR}" || exit 1
-  cd "${CURRENT_DIR}" || exit 1
+  rm -rf "${CLONE_DIR}" || return 1
+  cd "${CURRENT_DIR}" || return 1
 }
 
 validate_args() {
@@ -80,5 +80,5 @@ if ! validate_args; then
   exit 1
 fi
 
-print_vars
-sync_upstream
+print_vars || exit 1
+sync_upstream || exit 1
