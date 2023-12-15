@@ -37,4 +37,5 @@
     - git config --global user.email "${GIT_SYNC_EMAIL}"
     - export GIT_DOWNSTREAM_REPO_URL="https://gitlab-sync:${GROUP_ACCESS_TOKEN}@$(echo -n "${CI_REPOSITORY_URL}" | cut -d "@" -f2 )"
   script:
-    - .gitlab/git-sync.sh "${GIT_DOWNSTREAM_REPO_URL}" "${CI_COMMIT_BRANCH}" "${GIT_UPSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_NAME}"
+    - .gitlab/git-sync.sh "${GIT_DOWNSTREAM_REPO_URL}" "${CI_COMMIT_BRANCH}" "${GIT_UPSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_BRANCH}" "${GIT_UPSTREAM_REPO_NAME}"
+    - .gitlab/git-sync.sh "${GIT_DOWNSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_BRANCH}" "${GIT_UPSTREAM_REPO_NAME}"
