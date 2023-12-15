@@ -7,10 +7,13 @@ UPSTREAM_URL=
 UPSTREAM_BRANCH=
 UPSTREAM_NAME="upstream"
 
+CLONE_DIR="/opt/downstream_repo"
+
 
 sync_upstream() {
-  git clone "${REMOTE_URL}" /opt/downstream_repo
-  cd /opt/downstream_repo || exit 1
+  git clone "${REMOTE_URL}" "${CLONE_DIR}"
+  CURRENT_DIR=$(pwd)
+  cd "${CLONE_DIR}" || exit 1
   git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
   git fetch "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
 
@@ -36,6 +39,10 @@ sync_upstream() {
     echo "we are already in sync"
     echo "${LAST_UPSTREAM_COMMIT_SHA} is already merged into ${REMOTE_BRANCH}"
   fi
+
+  printf "removing temp repo folder %s\n" "${CLONE_DIR}"
+  rm -rf "${CLONE_DIR}" || exit 1
+  cd "${CURRENT_DIR}" || exit 1
 }
 
 validate_args() {
