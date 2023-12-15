@@ -23,7 +23,7 @@ sync_upstream() {
   CURRENT_BRANCH=$(git branch --show-current)
 
   if [ "${REMOTE_BRANCH}" != "${CURRENT_BRANCH}" ]; then
-    git checkout "${REMOTE_BRANCH}"
+    git checkout --track "origin/${REMOTE_BRANCH}"
   fi
 
   LAST_UPSTREAM_SHA_CONTAINING_BRANCH_NAME="$(git branch --contains "${LAST_UPSTREAM_COMMIT_SHA}" 2>/dev/null | cut -d " " -f2)"
