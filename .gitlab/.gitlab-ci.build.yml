@@ -1,3 +1,32 @@
+# docker in docker template
+.dind:
+  image: docker
+  services:
+    - name: docker:dind
+      command: ["--experimental"]
+  tags:
+    - docker
+    - arm64
+  before_script:
+    - apk add --no-cache make git bash curl libsecret pass gpg-agent openssh-client
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - .gitlab/docker-credential-init.sh "${GPG_USER}" "${GPG_MAIL}"
+    - mkdir -p ~/.docker/cli-plugins
+    - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
+    - chmod +x ~/.docker/cli-plugins/docker-buildx
+    - mkdir -p /usr/local/bin
+    - curl -sSLo /usr/local/bin/docker-credential-pass https://github.com/docker/docker-credential-helpers/releases/download/$DOCKER_CREDENTIAL_HELPER_VERSION/docker-credential-pass-$DOCKER_CREDENTIAL_HELPER_VERSION.$DOCKER_CREDENTIAL_HELPER_ARCHITECTURE
+    - chmod +x /usr/local/bin/docker-credential-pass
+    - docker context create tls-environment >/dev/null
+    - docker buildx create --use tls-environment >/dev/null
+    - echo "${DOCKER_AUTH_CONFIG}" > ~/.docker/config.json
+    - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  after_script:
+    - docker logout
+
+####################################
+
 ### create arm64
 image_arm64:
   extends: .dind

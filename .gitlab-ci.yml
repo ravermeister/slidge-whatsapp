@@ -4,7 +4,6 @@ stages:
   - release
 
 include:
-  - local: .gitlab/.gitlab-ci.template.yml
   - local: .gitlab/.gitlab-ci.build.yml
 
 variables:
