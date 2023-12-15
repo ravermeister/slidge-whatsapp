@@ -38,7 +38,6 @@ sync_upstream:
   rules:
     - if: $SYNC_ONLY == "true"
       when: always
-    - if: $SYNC_ONLY != "true"
-      when: manual
+    - when: never
 
 ### see .gitlab/.gitlab-ci.build.yml for docker image creation
