@@ -63,7 +63,7 @@
     # sync with fast-forward origin/GIT_UPSTREAM_REPO_BRANCH and GIT_UPSTREAM_REPO_NAME/GIT_UPSTREAM_REPO_BRANCH
     - >
       if [ "${GIT_UPSTREAM_REPO_BRANCH}" != "${CI_COMMIT_BRANCH}" ]; then        
-        git checkout "${GIT_UPSTREAM_REPO_BRANCH}" >/dev/null
+        git checkout "${GIT_UPSTREAM_REPO_BRANCH}"
         export CONTAINING_BRANCH_NAME="$(git branch --contains ${GIT_UPSTREAM_REPO_BRANCH} 2>/dev/null | cut -d " " -f2)"      
         if [ "${CONTAINING_BRANCH_NAME}" != "${CI_COMMIT_BRANCH}" ]; then
           echo "we need to sync"
