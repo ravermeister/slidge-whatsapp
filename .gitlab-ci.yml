@@ -29,15 +29,22 @@ variables:
     }
   '
 
+
 ### sync upstream repo
 sync_upstream:
   stage: sync
-  extends: .sync
   tags:
     - docker
   rules:
     - if: $SYNC_ONLY == "true"
       when: always
     - when: never
-
+  before_script:
+    - apk add git openssh-client
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - export GIT_DOWNSTREAM_REPO_URL="https://gitlab-sync:${GROUP_ACCESS_TOKEN}@$(echo -n "${CI_REPOSITORY_URL}" | cut -d "@" -f2 )"
+  script:
+    - .gitlab/git-sync.sh "${GIT_DOWNSTREAM_REPO_URL}" "${CI_COMMIT_BRANCH}" "${GIT_UPSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_BRANCH}" "${GIT_UPSTREAM_REPO_NAME}"
+    - .gitlab/git-sync.sh "${GIT_DOWNSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_BRANCH}" "${GIT_UPSTREAM_REPO_NAME}"
 ### see .gitlab/.gitlab-ci.build.yml for docker image creation
