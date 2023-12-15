@@ -52,6 +52,14 @@ validate_args() {
   fi
 }
 
+print_vars() {
+  printf "REMOTE_URL=%s\n" "${REMOTE_URL}"
+  printf "REMOTE_BRANCH=%s\n" "${REMOTE_BRANCH}"
+  printf "UPSTREAM_URL=%s\n" "${UPSTREAM_URL}"
+  printf "UPSTREAM_BRANCH=%s\n" "${UPSTREAM_BRANCH}"
+  printf "UPSTREAM_NAME=%s\n" "${UPSTREAM_NAME}"
+}
+
 usage() {
   printf "%s remote_url remote_branch upstream_url upstream_branch [upstream_name]" "$(basename "$0")"
 }
@@ -72,4 +80,5 @@ if ! validate_args; then
   exit 1
 fi
 
+print_vars
 sync_upstream
