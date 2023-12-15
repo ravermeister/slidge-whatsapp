@@ -15,7 +15,7 @@ sync_upstream() {
   CURRENT_DIR=$(pwd)
   cd "${CLONE_DIR}" || exit 1
   git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
-  git fetch "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
+  git fetch "${UPSTREAM_NAME}" "${UPSTREAM_BRANCH}"
 
   LAST_UPSTREAM_COMMIT_SHA=$(git rev-parse --short "${UPSTREAM_NAME}/${UPSTREAM_BRANCH}")
   LAST_UPSTREAM_COMMIT_MSG=$(git log -1 --pretty=%B "${UPSTREAM_NAME}/${UPSTREAM_BRANCH}")
@@ -80,5 +80,5 @@ if ! validate_args; then
   exit 1
 fi
 
-print_vars || exit 1
+# print_vars || exit 1
 sync_upstream || exit 1
