@@ -8,12 +8,13 @@ from re import search
 from shelve import open
 from tempfile import mkstemp
 from threading import Lock
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 from aiohttp import ClientSession
 from linkpreview import Link, LinkPreview
-from slidge import BaseSession, GatewayUser, global_config
+from slidge import BaseSession, FormField, GatewayUser, SearchResult, global_config
 from slidge.contact.roster import ContactIsUser
+from slidge.util import is_valid_phone_number
 from slidge.util.types import (
     LegacyAttachment,
     MessageReference,
@@ -467,7 +468,25 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else "")
 
     async def search(self, form_values: dict[str, str]):
-        self.send_gateway_message("Searching on WhatsApp has not been implemented yet.")
+        """
+        Searches for, and automatically adds, WhatsApp contact based on phone number. Phone numbers
+        not registered on WhatsApp will be ignored with no error.
+        """
+        phone = form_values.get("phone")
+        if not is_valid_phone_number(phone):
+            raise ValueError("Not a valid phone number", phone)
+
+        data = self.whatsapp.FindContact(phone)
+        if not data.JID:
+            return
+
+        await self.contacts.add_whatsapp_contact(data)
+        contact = await self.contacts.by_legacy_id(data.JID)
+
+        return SearchResult(
+            fields=[FormField("phone"), FormField("jid", type="jid-single")],
+            items=[{"phone": cast(str, phone), "jid": contact.jid.bare}],
+        )
 
     async def get_contact_or_participant(
         self, legacy_contact_id: str, legacy_group_jid: str

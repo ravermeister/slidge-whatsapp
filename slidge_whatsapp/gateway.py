@@ -3,7 +3,7 @@ from pathlib import Path
 from shelve import open
 from typing import TYPE_CHECKING
 
-from slidge import BaseGateway, GatewayUser, global_config
+from slidge import BaseGateway, FormField, GatewayUser, global_config
 
 from . import config
 from .generated import whatsapp
@@ -32,6 +32,10 @@ class Gateway(BaseGateway):
     REGISTRATION_INSTRUCTIONS = REGISTRATION_INSTRUCTIONS
     WELCOME_MESSAGE = WELCOME_MESSAGE
     REGISTRATION_FIELDS = []
+
+    SEARCH_FIELDS = [
+        FormField(var="phone", label="Phone number", required=True),
+    ]
 
     ROSTER_GROUP = "WhatsApp"
 
