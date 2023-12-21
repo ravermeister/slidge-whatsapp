@@ -384,7 +384,12 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SendMessage(message)
 
     async def on_correct(
-        self, c: Recipient, text: str, legacy_msg_id: str, thread=None
+        self,
+        c: Recipient,
+        text: str,
+        legacy_msg_id: str,
+        thread=None,
+        link_previews=(),
     ):
         """
         Request correction (aka editing) for a given WhatsApp message.
