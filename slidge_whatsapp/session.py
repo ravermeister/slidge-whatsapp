@@ -93,9 +93,7 @@ class Session(BaseSession[str, Recipient]):
         will thus allow previously authenticated sessions to re-authenticate without needing to pair.
         """
         self.whatsapp.Disconnect()
-
-    def __get_connected_status_message(self):
-        return f"Connected as {self.user_phone}"
+        self.logged = False
 
     @ignore_contact_is_user
     async def handle_event(self, event, ptr):
@@ -145,7 +143,7 @@ class Session(BaseSession[str, Recipient]):
                 await self.handle_message(data.Message)
 
     async def handle_chat_state(self, state: whatsapp.ChatState):
-        contact = await self.get_contact_or_participant(state.JID, state.GroupJID)
+        contact = await self.__get_contact_or_participant(state.JID, state.GroupJID)
         if state.Kind == whatsapp.ChatStateComposing:
             contact.composing()
         elif state.Kind == whatsapp.ChatStatePaused:
@@ -155,7 +153,7 @@ class Session(BaseSession[str, Recipient]):
         """
         Handle incoming delivered/read receipt, as propagated by the WhatsApp adapter.
         """
-        contact = await self.get_contact_or_participant(receipt.JID, receipt.GroupJID)
+        contact = await self.__get_contact_or_participant(receipt.JID, receipt.GroupJID)
         for message_id in receipt.MessageIDs:
             if receipt.Kind == whatsapp.ReceiptDelivered:
                 contact.received(message_id)
@@ -177,75 +175,15 @@ class Session(BaseSession[str, Recipient]):
             text = text + f" at {call_at}"
         self.send_gateway_message(text)
 
-    async def _get_reply_to(
-        self, message: whatsapp.Message, muc: Optional["MUC"] = None
-    ) -> Optional[MessageReference]:
-        if not message.ReplyID:
-            return None
-        reply_to = MessageReference(
-            legacy_id=message.ReplyID,
-            body=message.ReplyBody
-            if muc is None
-            else muc.replace_mentions(message.ReplyBody),
-        )
-        if message.OriginJID == self.contacts.user_legacy_id:
-            reply_to.author = self.user
-        else:
-            reply_to.author = await self.get_contact_or_participant(
-                message.OriginJID, message.GroupJID
-            )
-        return reply_to
-
-    async def _get_preview(self, text: str) -> Optional[whatsapp.Preview]:
-        if not config.ENABLE_LINK_PREVIEWS:
-            return None
-        match = search(URL_SEARCH_REGEX, text)
-        if not match:
-            return None
-        url = match.group("url")
-        async with self.http.get(url) as resp:
-            if resp.status != 200:
-                self.log.debug(
-                    "Could not generate a preview for %s because response status was %s",
-                    url,
-                    resp.status,
-                )
-                return None
-            if resp.content_type != "text/html":
-                self.log.debug(
-                    "Could not generate a preview for %s because content type is %s",
-                    url,
-                    resp.content_type,
-                )
-                return None
-            try:
-                html = await resp.text()
-            except Exception as e:
-                self.log.debug("Could not generate a preview for %s", url, exc_info=e)
-                return None
-            preview = LinkPreview(Link(url, html))
-            if not preview.title:
-                return None
-            try:
-                return whatsapp.Preview(
-                    Title=preview.title,
-                    Description=preview.description or "",
-                    URL=url,
-                    ImagePath=await get_url_temp(self.http, preview.image),
-                )
-            except Exception as e:
-                self.log.debug("Could not generate a preview for %s", url, exc_info=e)
-                return None
-
     async def handle_message(self, message: whatsapp.Message):
         """
         Handle incoming message, as propagated by the WhatsApp adapter. Messages can be one of many
         types, including plain-text messages, media messages, reactions, etc., and may also include
         other aspects such as references to other messages for the purposes of quoting or correction.
         """
-        contact = await self.get_contact_or_participant(message.JID, message.GroupJID)
+        contact = await self.__get_contact_or_participant(message.JID, message.GroupJID)
         muc = getattr(contact, "muc", None)
-        reply_to = await self._get_reply_to(message, muc)
+        reply_to = await self.__get_reply_to(message, muc)
         message_timestamp = (
             datetime.fromtimestamp(message.Timestamp, tz=timezone.utc)
             if message.Timestamp > 0
@@ -294,7 +232,7 @@ class Session(BaseSession[str, Recipient]):
                 legacy_msg_id=message.ID, emojis=emojis, carbon=message.IsCarbon
             )
 
-    async def send_text(
+    async def on_text(
         self,
         chat: Recipient,
         text: str,
@@ -308,7 +246,7 @@ class Session(BaseSession[str, Recipient]):
         Send outgoing plain-text message to given WhatsApp contact.
         """
         message_id = self.whatsapp.GenerateMessageID()
-        message_preview = await self._get_preview(text) or whatsapp.Preview()
+        message_preview = await self.__get_preview(text) or whatsapp.Preview()
         message = whatsapp.Message(
             ID=message_id, JID=chat.legacy_id, Body=text, Preview=message_preview
         )
@@ -316,7 +254,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SendMessage(message)
         return message_id
 
-    async def send_file(
+    async def on_file(
         self,
         chat: Recipient,
         url: str,
@@ -346,7 +284,7 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp.SendMessage(message)
         return message_id
 
-    async def presence(
+    async def on_presence(
         self,
         resource: str,
         show: PseudoPresenceShow,
@@ -370,19 +308,19 @@ class Session(BaseSession[str, Recipient]):
                 presence, merged_resource["status"] if merged_resource["status"] else ""
             )
 
-    async def active(self, c: Recipient, thread=None):
+    async def on_active(self, c: Recipient, thread=None):
         """
         WhatsApp has no equivalent to the "active" chat state, so calls to this function are no-ops.
         """
         pass
 
-    async def inactive(self, c: Recipient, thread=None):
+    async def on_inactive(self, c: Recipient, thread=None):
         """
         WhatsApp has no equivalent to the "inactive" chat state, so calls to this function are no-ops.
         """
         pass
 
-    async def composing(self, c: Recipient, thread=None):
+    async def on_composing(self, c: Recipient, thread=None):
         """
         Send "composing" chat state to given WhatsApp contact, signifying that a message is currently
         being composed.
@@ -390,7 +328,7 @@ class Session(BaseSession[str, Recipient]):
         state = whatsapp.ChatState(JID=c.legacy_id, Kind=whatsapp.ChatStateComposing)
         self.whatsapp.SendChatState(state)
 
-    async def paused(self, c: Recipient, thread=None):
+    async def on_paused(self, c: Recipient, thread=None):
         """
         Send "paused" chat state to given WhatsApp contact, signifying that an (unsent) message is no
         longer being composed.
@@ -398,7 +336,7 @@ class Session(BaseSession[str, Recipient]):
         state = whatsapp.ChatState(JID=c.legacy_id, Kind=whatsapp.ChatStatePaused)
         self.whatsapp.SendChatState(state)
 
-    async def displayed(self, c: Recipient, legacy_msg_id: str, thread=None):
+    async def on_displayed(self, c: Recipient, legacy_msg_id: str, thread=None):
         """
         Send "read" receipt, signifying that the WhatsApp message sent has been displayed on the XMPP
         client.
@@ -412,7 +350,7 @@ class Session(BaseSession[str, Recipient]):
         )
         self.whatsapp.SendReceipt(receipt)
 
-    async def react(
+    async def on_react(
         self, c: Recipient, legacy_msg_id: str, emojis: list[str], thread=None
     ):
         """
@@ -420,7 +358,7 @@ class Session(BaseSession[str, Recipient]):
         Slidge core makes sure that the emojis parameter is always empty or a
         *single* emoji.
         """
-        is_carbon = self._is_carbon(c, legacy_msg_id)
+        is_carbon = self.__is_carbon(c, legacy_msg_id)
         message_sender_id = (
             c.get_message_sender(legacy_msg_id)
             if not is_carbon and isinstance(c, MUC)
@@ -436,7 +374,7 @@ class Session(BaseSession[str, Recipient]):
         )
         self.whatsapp.SendMessage(message)
 
-    async def retract(self, c: Recipient, legacy_msg_id: str, thread=None):
+    async def on_retract(self, c: Recipient, legacy_msg_id: str, thread=None):
         """
         Request deletion (aka retraction) for a given WhatsApp message.
         """
@@ -445,7 +383,9 @@ class Session(BaseSession[str, Recipient]):
         )
         self.whatsapp.SendMessage(message)
 
-    async def correct(self, c: Recipient, text: str, legacy_msg_id: str, thread=None):
+    async def on_correct(
+        self, c: Recipient, text: str, legacy_msg_id: str, thread=None
+    ):
         """
         Request correction (aka editing) for a given WhatsApp message.
         """
@@ -467,7 +407,7 @@ class Session(BaseSession[str, Recipient]):
         """
         self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else "")
 
-    async def search(self, form_values: dict[str, str]):
+    async def on_search(self, form_values: dict[str, str]):
         """
         Searches for, and automatically adds, WhatsApp contact based on phone number. Phone numbers
         not registered on WhatsApp will be ignored with no error.
@@ -488,7 +428,70 @@ class Session(BaseSession[str, Recipient]):
             items=[{"phone": cast(str, phone), "jid": contact.jid.bare}],
         )
 
-    async def get_contact_or_participant(
+    def __get_connected_status_message(self):
+        return f"Connected as {self.user_phone}"
+
+    async def __get_reply_to(
+        self, message: whatsapp.Message, muc: Optional["MUC"] = None
+    ) -> Optional[MessageReference]:
+        if not message.ReplyID:
+            return None
+        reply_to = MessageReference(
+            legacy_id=message.ReplyID,
+            body=message.ReplyBody
+            if muc is None
+            else muc.replace_mentions(message.ReplyBody),
+        )
+        if message.OriginJID == self.contacts.user_legacy_id:
+            reply_to.author = self.user
+        else:
+            reply_to.author = await self.__get_contact_or_participant(
+                message.OriginJID, message.GroupJID
+            )
+        return reply_to
+
+    async def __get_preview(self, text: str) -> Optional[whatsapp.Preview]:
+        if not config.ENABLE_LINK_PREVIEWS:
+            return None
+        match = search(URL_SEARCH_REGEX, text)
+        if not match:
+            return None
+        url = match.group("url")
+        async with self.http.get(url) as resp:
+            if resp.status != 200:
+                self.log.debug(
+                    "Could not generate a preview for %s because response status was %s",
+                    url,
+                    resp.status,
+                )
+                return None
+            if resp.content_type != "text/html":
+                self.log.debug(
+                    "Could not generate a preview for %s because content type is %s",
+                    url,
+                    resp.content_type,
+                )
+                return None
+            try:
+                html = await resp.text()
+            except Exception as e:
+                self.log.debug("Could not generate a preview for %s", url, exc_info=e)
+                return None
+            preview = LinkPreview(Link(url, html))
+            if not preview.title:
+                return None
+            try:
+                return whatsapp.Preview(
+                    Title=preview.title,
+                    Description=preview.description or "",
+                    URL=url,
+                    ImagePath=await get_url_temp(self.http, preview.image),
+                )
+            except Exception as e:
+                self.log.debug("Could not generate a preview for %s", url, exc_info=e)
+                return None
+
+    async def __get_contact_or_participant(
         self, legacy_contact_id: str, legacy_group_jid: str
     ):
         """
@@ -500,7 +503,7 @@ class Session(BaseSession[str, Recipient]):
         else:
             return await self.contacts.by_legacy_id(legacy_contact_id)
 
-    def _is_carbon(self, c: Recipient, legacy_msg_id: str):
+    def __is_carbon(self, c: Recipient, legacy_msg_id: str):
         if c.is_group:
             return legacy_msg_id in self.muc_sent_msg_ids
         else:

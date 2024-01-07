@@ -112,7 +112,7 @@ var convertAttachmentTypes = map[string]convertAttachmentOptions{
 }
 
 // ConvertAttachment attempts to process a given attachment from a less-supported type to a
-// canonically supported one; for example, from `image/png` to `image.jpeg`. Decisions about which
+// canonically supported one; for example, from `image/png` to `image/jpeg`. Decisions about which
 // MIME types to convert to are based on the origin MIME type, and care is taken to conform to
 // WhatsApp semantics for the given input MIME type. If the input MIME type is unknown, or
 // conversion is impossible, the original attachment is returned unchanged.
