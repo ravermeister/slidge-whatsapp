@@ -38,10 +38,6 @@ var (
 const (
 	// The MIME type used by voice messages on WhatsApp.
 	voiceMessageMIME = "audio/ogg; codecs=opus"
-	// The MIME type used by video messages on WhatsApp.
-	videoMessageMIME = "video/mp4"
-	// The audio MIME type corresponding to that for video messages.
-	videoAudioMIME = "audio/mp4"
 	// the MIME type used by animated images on WhatsApp.
 	animatedImageMIME = "image/gif"
 )
@@ -78,7 +74,7 @@ var (
 	}
 	// The MIME type and conversion arguments used by video messages on WhatsApp.
 	videoMessageOptions = convertAttachmentOptions{
-		mime: videoMessageMIME,
+		mime: "video/mp4",
 		call: convertAudioVideo,
 		args: []string{
 			"-f", "mp4", "-c:v", "libx264", // Convert to mp4 with h264.
@@ -96,12 +92,13 @@ var (
 
 // ConvertAttachmentTypes represents a list of media types to convert based on source MIME type.
 var convertAttachmentTypes = map[string]convertAttachmentOptions{
-	"image/png":  imageMessageOptions,
-	"image/webp": imageMessageOptions,
-	"audio/mp4":  voiceMessageOptions,
-	"audio/aac":  voiceMessageOptions,
-	"video/mp4":  videoMessageOptions,
-	"video/webm": videoMessageOptions,
+	"image/png":              imageMessageOptions,
+	"image/webp":             imageMessageOptions,
+	"audio/mp4":              voiceMessageOptions,
+	"audio/aac":              voiceMessageOptions,
+	"audio/ogg; codecs=opus": voiceMessageOptions,
+	"video/mp4":              videoMessageOptions,
+	"video/webm":             videoMessageOptions,
 	"image/gif": {
 		mime: videoMessageOptions.mime,
 		call: videoMessageOptions.call,
@@ -113,29 +110,50 @@ var convertAttachmentTypes = map[string]convertAttachmentOptions{
 
 // ConvertAttachment attempts to process a given attachment from a less-supported type to a
 // canonically supported one; for example, from `image/png` to `image/jpeg`. Decisions about which
-// MIME types to convert to are based on the origin MIME type, and care is taken to conform to
-// WhatsApp semantics for the given input MIME type. If the input MIME type is unknown, or
-// conversion is impossible, the original attachment is returned unchanged.
+// MIME types to convert to are based on the concrete MIME type inferred from the file itself, and
+// care is taken to conform to WhatsApp semantics for the given input MIME type. If the input MIME
+// type is unknown, or conversion is impossible, the original attachment is returned unchanged.
 func convertAttachment(attach *Attachment) error {
-	var err error
-	if attach.MIME == "" || attach.MIME == "application/octet-stream" {
-		if t, _ := filetype.MatchFile(attach.Path); t != filetype.Unknown {
-			attach.MIME = t.MIME.Value
+	var detectedMIME string
+	if t, _ := filetype.MatchFile(attach.Path); t != filetype.Unknown {
+		detectedMIME = t.MIME.Value
+		if attach.MIME == "" || attach.MIME == "application/octet-stream" {
+			attach.MIME = detectedMIME
 		}
 	}
 
-	// Try to see if there's a video stream for ostensibly video-related MIME types, as these are
-	// some times misdetected as such.
-	if attach.MIME == videoMessageMIME {
-		if err = populateAttachmentMetadata(attach); err == nil {
+	switch detectedMIME {
+	case "audio/m4a":
+		// MP4 audio files are matched as `audio/m4a` which is not a valid MIME, correct this to
+		// `audio/mp4`, which is what WhatsApp requires as well.
+		detectedMIME = "audio/mp4"
+		fallthrough
+	case "audio/mp4", "audio/ogg":
+		if err := populateAttachmentMetadata(attach); err == nil {
+			switch attach.meta.codec {
+			// Don't attempt to process lossless files at all, as it's assumed that the sender
+			// wants to retain these characteristics. Since WhatsApp will try (and likely fail)
+			// to process this as an audio message anyways, set a unique MIME type.
+			case "alac":
+				detectedMIME += "; codecs=" + attach.meta.codec
+				return nil
+			case "opus":
+				detectedMIME += "; codecs=" + attach.meta.codec
+			}
+		}
+	case "video/mp4":
+		// Try to see if there's a video stream for ostensibly video-related MIME types, as these are
+		// some times misdetected as such.
+		if err := populateAttachmentMetadata(attach); err == nil {
 			if attach.meta.width == 0 && attach.meta.height == 0 && attach.meta.sampleRate > 0 && attach.meta.duration > 0 {
-				attach.MIME = videoAudioMIME
+				attach.MIME = "audio/mp4"
 			}
 		}
 	}
 
-	if o, ok := convertAttachmentTypes[attach.MIME]; ok {
-		if err = o.call(attach, o.args...); err != nil {
+	// Convert attachment between file-types, if source MIME matches the known list of convertable types.
+	if o, ok := convertAttachmentTypes[detectedMIME]; ok {
+		if err := o.call(attach, o.args...); err != nil {
 			return fmt.Errorf("conversion from %s to %s failed: %s", attach.MIME, o.mime, err)
 		} else {
 			attach.MIME = o.mime
@@ -245,6 +263,7 @@ func getAttachmentThumbnail(attach *Attachment) ([]byte, error) {
 // is usually gathered on a best-effort basis, and thus may be missing even for otherwise valid
 // media buffers.
 type attachmentMetadata struct {
+	codec      string        // The codec used for the primary stream in this attachment.
 	width      int           // The calculated width of the given video buffer; 0 if there's no video stream.
 	height     int           // The calculated height of the given video buffer; 0 if there's no video stream.
 	sampleRate int           // The calculated sample rate of the given audio buffer; usually not set for video streams.
@@ -265,7 +284,7 @@ func populateAttachmentMetadata(attach *Attachment) error {
 
 	args := append(ffprobeDefaultArgs, []string{
 		"-i", attach.Path,
-		"-show_entries", "stream=width,height,sample_rate,duration",
+		"-show_entries", "stream=codec_name,width,height,sample_rate,duration",
 	}...)
 
 	cmd := exec.Command(ffprobeCommand, args...)
@@ -284,6 +303,8 @@ func populateAttachmentMetadata(attach *Attachment) error {
 		for _, f := range strings.Split(scanner.Text(), ",") {
 			k, v, _ := strings.Cut(strings.TrimSpace(f), "=")
 			switch k {
+			case "codec_name":
+				meta.codec = v
 			case "duration":
 				if v, err := strconv.ParseFloat(v, 64); err == nil {
 					meta.duration = time.Duration(v * float64(time.Second))
