@@ -122,12 +122,13 @@ func convertAttachment(attach *Attachment) error {
 		}
 	}
 
-	switch detectedMIME {
-	case "audio/m4a":
-		// MP4 audio files are matched as `audio/m4a` which is not a valid MIME, correct this to
-		// `audio/mp4`, which is what WhatsApp requires as well.
+	// MP4 audio files are matched as `audio/m4a` which is not a valid MIME, correct this to
+	// `audio/mp4`, which is what WhatsApp requires as well.
+	if detectedMIME == "audio/m4a" {
 		detectedMIME = "audio/mp4"
-		fallthrough
+	}
+
+	switch detectedMIME {
 	case "audio/mp4", "audio/ogg":
 		if err := populateAttachmentMetadata(attach); err == nil {
 			switch attach.meta.codec {
@@ -146,7 +147,7 @@ func convertAttachment(attach *Attachment) error {
 		// some times misdetected as such.
 		if err := populateAttachmentMetadata(attach); err == nil {
 			if attach.meta.width == 0 && attach.meta.height == 0 && attach.meta.sampleRate > 0 && attach.meta.duration > 0 {
-				attach.MIME = "audio/mp4"
+				detectedMIME = "audio/mp4"
 			}
 		}
 	}
