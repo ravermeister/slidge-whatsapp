@@ -240,6 +240,7 @@ class Session(BaseSession[str, Recipient]):
         reply_to_msg_id: Optional[str] = None,
         reply_to_fallback_text: Optional[str] = None,
         reply_to=None,
+        mentions=None,
         **_,
     ):
         """
@@ -390,6 +391,7 @@ class Session(BaseSession[str, Recipient]):
         legacy_msg_id: str,
         thread=None,
         link_previews=(),
+        mentions=None,
     ):
         """
         Request correction (aka editing) for a given WhatsApp message.
