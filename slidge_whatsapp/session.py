@@ -27,6 +27,7 @@ from .contact import Contact, Roster
 from .gateway import Gateway
 from .generated import go, whatsapp
 from .group import MUC, Bookmarks
+from .util import get_bytes_temp
 
 MESSAGE_PAIR_SUCCESS = (
     "Pairing successful! You might need to repeat this process in the future if the"
@@ -588,11 +589,3 @@ async def get_url_temp(client: ClientSession, url: str) -> Optional[str]:
             with fdopen(temp_file, "wb") as f:
                 f.write(await resp.read())
     return temp_path
-
-
-async def get_bytes_temp(buf: bytes) -> Optional[str]:
-    temp_file, temp_path = mkstemp(dir=global_config.HOME_DIR / "tmp")
-    with fdopen(temp_file, "wb") as f:
-        f.write(buf)
-        return temp_path
-    return None

@@ -1,11 +1,12 @@
 import re
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
 from slixmpp.exceptions import XMPPError
 
 from .generated import whatsapp
+from .util import get_bytes_temp
 
 if TYPE_CHECKING:
     from .contact import Contact
@@ -100,6 +101,11 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             | {self.session.user_phone: self.user_nick}
             if self.session.user_phone  # user_phone *should* be set at this point,
             else {},  # but better safe than sorry
+        )
+
+    async def on_avatar(self, data: Optional[bytes], mime: Optional[str]) -> None:
+        return self.session.whatsapp.SetAvatar(
+            self.legacy_id, await get_bytes_temp(data) if data else ""
         )
 
 
