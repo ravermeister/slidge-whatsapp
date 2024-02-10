@@ -42,6 +42,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     _ALL_INFO_FILLED_ON_STARTUP = True
 
+    HAS_DESCRIPTION = False
+
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.sent = dict[str, str]()
@@ -109,6 +111,19 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         return self.session.whatsapp.SetAvatar(
             self.legacy_id, await get_bytes_temp(data) if data else ""
         )
+
+    async def on_set_config(
+        self,
+        name: Optional[str],
+        description: Optional[str],
+    ):
+        # there are no group descriptions in WA, but topics=subjects
+        if self.name != name:
+            self.session.whatsapp.SetGroupName(self.legacy_id, name)
+
+    async def on_set_subject(self, subject: str):
+        if self.subject != subject:
+            self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)
 
 
 class Bookmarks(LegacyBookmarks[str, MUC]):

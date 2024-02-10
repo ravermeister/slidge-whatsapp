@@ -493,6 +493,34 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 	}
 }
 
+// SetGroupName updates the name of a WhatsApp group
+func (s *Session) SetGroupName(resourceID, name string) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("Cannot set group name for unauthenticated session")
+	}
+
+	jid, err := types.ParseJID(resourceID)
+	if err != nil {
+		return fmt.Errorf("Could not parse JID for group name change: %s", err)
+	}
+
+	return s.client.SetGroupName(jid, name)
+}
+
+// SetGroupTopic updates the topic of a WhatsApp group
+func (s *Session) SetGroupTopic(resourceID, topic string) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("Cannot set group topic for unauthenticated session")
+	}
+
+	jid, err := types.ParseJID(resourceID)
+	if err != nil {
+		return fmt.Errorf("Could not parse JID for group topic change: %s", err)
+	}
+
+	return s.client.SetGroupTopic(jid, "", "", topic)
+}
+
 // FindContact attempts to check for a registered contact on WhatsApp corresponding to the given
 // phone number, returning a concrete instance if found; typically, only the contact JID is set. No
 // error is returned if no contact was found, but any unexpected errors will otherwise be returned
