@@ -226,7 +226,10 @@ class Session(BaseSession[str, Recipient]):
                 carbon=message.IsCarbon,
             )
         elif message.Kind == whatsapp.MessageRevoke:
-            contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
+            if message.OriginJID == message.JID:
+                contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
+            else:
+                contact.moderate(legacy_msg_id=message.ID)
         elif message.Kind == whatsapp.MessageReaction:
             emojis = [message.Body] if message.Body else []
             contact.react(
