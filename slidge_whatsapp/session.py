@@ -387,6 +387,24 @@ class Session(BaseSession[str, Recipient]):
         )
         self.whatsapp.SendMessage(message)
 
+    async def on_moderate(
+        self,
+        muc: MUC,  # type:ignore
+        legacy_msg_id: str,
+        reason: Optional[str],
+    ):
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageRevoke,
+            ID=legacy_msg_id,
+            JID=muc.legacy_id,
+            OriginJID=muc.get_message_sender(legacy_msg_id),
+        )
+        self.whatsapp.SendMessage(message)
+        # Apparently, no revoke event is received by whatsmeow after sending
+        # the revoke message, so we need to "echo" it here.
+        part = await muc.get_user_participant()
+        part.moderate(legacy_msg_id)
+
     async def on_correct(
         self,
         c: Recipient,

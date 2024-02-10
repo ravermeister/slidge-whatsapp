@@ -220,7 +220,18 @@ func (s *Session) SendMessage(message Message) error {
 		payload = s.client.BuildEdit(s.device.JID().ToNonAD(), message.ID, s.getMessagePayload(message))
 	case MessageRevoke:
 		// Don't send message, but revoke existing message by ID.
-		payload = s.client.BuildRevoke(s.device.JID().ToNonAD(), types.EmptyJID, message.ID)
+		var originJID types.JID
+		if message.OriginJID == "" {
+			// A message retraction by the person who sent it
+			originJID = types.EmptyJID
+		} else {
+			// A message moderation
+			originJID, err = types.ParseJID(message.OriginJID)
+			if err != nil {
+				return fmt.Errorf("Could not parse sender JID for message: %s", err)
+			}
+		}
+		payload = s.client.BuildRevoke(jid, originJID, message.ID)
 	case MessageReaction:
 		// Send message as emoji reaction to a given message.
 		payload = &proto.Message{

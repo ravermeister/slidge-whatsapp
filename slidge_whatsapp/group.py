@@ -90,8 +90,10 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 participant.affiliation = "member"
                 if data.Affiliation == whatsapp.GroupAffiliationAdmin:
                     participant.affiliation = "admin"
+                    participant.role = "moderator"
                 elif data.Affiliation == whatsapp.GroupAffiliationOwner:
                     participant.affiliation = "owner"
+                    participant.role = "moderator"
 
     def replace_mentions(self, t: str):
         return replace_mentions(
