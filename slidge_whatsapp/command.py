@@ -120,3 +120,24 @@ class ChangePresence(Command):
         else:
             raise ValueError("Not a valid presence kind.", p)
         return f"Presence succesfully set to {p}"
+
+
+class SubscribeToPresences(Command):
+    NAME = "Subscribe to contacts' presences"
+    HELP = (
+        "This command is here for tests about "
+        "https://todo.sr.ht/~nicoco/slidge-whatsapp/7 ."
+    )
+    NODE = "wa_subscribe"
+    CHAT_COMMAND = "subscribe"
+    ACCESS = CommandAccess.USER_LOGGED
+
+    async def run(
+        self,
+        session: Optional["Session"],  # type:ignore
+        ifrom: JID,
+        *args,
+    ) -> str:
+        assert session is not None
+        session.whatsapp.GetContacts(False)
+        return "Looks like no exception was raised. Success, I guess?"
