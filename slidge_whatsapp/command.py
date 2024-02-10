@@ -125,8 +125,9 @@ class ChangePresence(Command):
 class SubscribeToPresences(Command):
     NAME = "Subscribe to contacts' presences"
     HELP = (
-        "This command is here for tests about "
-        "https://todo.sr.ht/~nicoco/slidge-whatsapp/7 ."
+        "Subscribes to and refreshes contacts' presences; typically this is "
+        "done automatically, but re-subscribing might be useful in case contact "
+        "presences are stuck or otherwise not updating."
     )
     NODE = "wa_subscribe"
     CHAT_COMMAND = "subscribe"
