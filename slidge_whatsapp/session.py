@@ -345,9 +345,11 @@ class Session(BaseSession[str, Recipient]):
         """
         receipt = whatsapp.Receipt(
             MessageIDs=go.Slice_string([legacy_msg_id]),
-            JID=c.get_message_sender(legacy_msg_id)
-            if isinstance(c, MUC)
-            else c.legacy_id,
+            JID=(
+                c.get_message_sender(legacy_msg_id)
+                if isinstance(c, MUC)
+                else c.legacy_id
+            ),
             GroupJID=c.legacy_id if c.is_group else "",
         )
         self.whatsapp.SendReceipt(receipt)
@@ -446,9 +448,11 @@ class Session(BaseSession[str, Recipient]):
             return None
         reply_to = MessageReference(
             legacy_id=message.ReplyID,
-            body=message.ReplyBody
-            if muc is None
-            else muc.replace_mentions(message.ReplyBody),
+            body=(
+                message.ReplyBody
+                if muc is None
+                else muc.replace_mentions(message.ReplyBody)
+            ),
         )
         if message.OriginJID == self.contacts.user_legacy_id:
             reply_to.author = self.user
@@ -532,9 +536,11 @@ class Attachment(LegacyAttachment):
         return Attachment(
             content_type=wa_attachment.MIME,
             path=wa_attachment.Path,
-            caption=wa_attachment.Caption
-            if muc is None
-            else muc.replace_mentions(wa_attachment.Caption),
+            caption=(
+                wa_attachment.Caption
+                if muc is None
+                else muc.replace_mentions(wa_attachment.Caption)
+            ),
             name=wa_attachment.Filename,
         )
 

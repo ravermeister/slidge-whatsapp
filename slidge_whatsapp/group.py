@@ -94,13 +94,15 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     def replace_mentions(self, t: str):
         return replace_mentions(
             t,
-            participants={
-                c.jid_username: c.name
-                for c, p in self._participants_by_contacts.items()
-            }
-            | {self.session.user_phone: self.user_nick}
-            if self.session.user_phone  # user_phone *should* be set at this point,
-            else {},  # but better safe than sorry
+            participants=(
+                {
+                    c.jid_username: c.name
+                    for c, p in self._participants_by_contacts.items()
+                }
+                | {self.session.user_phone: self.user_nick}
+                if self.session.user_phone  # user_phone *should* be set at this point,
+                else {}  # but better safe than sorry
+            ),
         )
 
     async def on_avatar(self, data: Optional[bytes], mime: Optional[str]) -> None:
