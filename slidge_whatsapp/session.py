@@ -226,7 +226,10 @@ class Session(BaseSession[str, Recipient]):
                 carbon=message.IsCarbon,
             )
         elif message.Kind == whatsapp.MessageRevoke:
-            contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
+            if message.OriginJID == message.JID:
+                contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
+            else:
+                contact.moderate(legacy_msg_id=message.ID)
         elif message.Kind == whatsapp.MessageReaction:
             emojis = [message.Body] if message.Body else []
             contact.react(
@@ -345,9 +348,11 @@ class Session(BaseSession[str, Recipient]):
         """
         receipt = whatsapp.Receipt(
             MessageIDs=go.Slice_string([legacy_msg_id]),
-            JID=c.get_message_sender(legacy_msg_id)
-            if isinstance(c, MUC)
-            else c.legacy_id,
+            JID=(
+                c.get_message_sender(legacy_msg_id)
+                if isinstance(c, MUC)
+                else c.legacy_id
+            ),
             GroupJID=c.legacy_id if c.is_group else "",
         )
         self.whatsapp.SendReceipt(receipt)
@@ -384,6 +389,24 @@ class Session(BaseSession[str, Recipient]):
             Kind=whatsapp.MessageRevoke, ID=legacy_msg_id, JID=c.legacy_id
         )
         self.whatsapp.SendMessage(message)
+
+    async def on_moderate(
+        self,
+        muc: MUC,  # type:ignore
+        legacy_msg_id: str,
+        reason: Optional[str],
+    ):
+        message = whatsapp.Message(
+            Kind=whatsapp.MessageRevoke,
+            ID=legacy_msg_id,
+            JID=muc.legacy_id,
+            OriginJID=muc.get_message_sender(legacy_msg_id),
+        )
+        self.whatsapp.SendMessage(message)
+        # Apparently, no revoke event is received by whatsmeow after sending
+        # the revoke message, so we need to "echo" it here.
+        part = await muc.get_user_participant()
+        part.moderate(legacy_msg_id)
 
     async def on_correct(
         self,
@@ -446,9 +469,11 @@ class Session(BaseSession[str, Recipient]):
             return None
         reply_to = MessageReference(
             legacy_id=message.ReplyID,
-            body=message.ReplyBody
-            if muc is None
-            else muc.replace_mentions(message.ReplyBody),
+            body=(
+                message.ReplyBody
+                if muc is None
+                else muc.replace_mentions(message.ReplyBody)
+            ),
         )
         if message.OriginJID == self.contacts.user_legacy_id:
             reply_to.author = self.user
@@ -532,9 +557,11 @@ class Attachment(LegacyAttachment):
         return Attachment(
             content_type=wa_attachment.MIME,
             path=wa_attachment.Path,
-            caption=wa_attachment.Caption
-            if muc is None
-            else muc.replace_mentions(wa_attachment.Caption),
+            caption=(
+                wa_attachment.Caption
+                if muc is None
+                else muc.replace_mentions(wa_attachment.Caption)
+            ),
             name=wa_attachment.Filename,
         )
 

@@ -42,6 +42,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     _ALL_INFO_FILLED_ON_STARTUP = True
 
+    HAS_DESCRIPTION = False
+
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.sent = dict[str, str]()
@@ -88,25 +90,42 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 participant.affiliation = "member"
                 if data.Affiliation == whatsapp.GroupAffiliationAdmin:
                     participant.affiliation = "admin"
+                    participant.role = "moderator"
                 elif data.Affiliation == whatsapp.GroupAffiliationOwner:
                     participant.affiliation = "owner"
+                    participant.role = "moderator"
 
     def replace_mentions(self, t: str):
         return replace_mentions(
             t,
-            participants={
-                c.jid_username: c.name
-                for c, p in self._participants_by_contacts.items()
-            }
-            | {self.session.user_phone: self.user_nick}
-            if self.session.user_phone  # user_phone *should* be set at this point,
-            else {},  # but better safe than sorry
+            participants=(
+                {
+                    c.jid_username: c.name
+                    for c, p in self._participants_by_contacts.items()
+                }
+                | {self.session.user_phone: self.user_nick}
+                if self.session.user_phone  # user_phone *should* be set at this point,
+                else {}  # but better safe than sorry
+            ),
         )
 
     async def on_avatar(self, data: Optional[bytes], mime: Optional[str]) -> None:
         return self.session.whatsapp.SetAvatar(
             self.legacy_id, await get_bytes_temp(data) if data else ""
         )
+
+    async def on_set_config(
+        self,
+        name: Optional[str],
+        description: Optional[str],
+    ):
+        # there are no group descriptions in WA, but topics=subjects
+        if self.name != name:
+            self.session.whatsapp.SetGroupName(self.legacy_id, name)
+
+    async def on_set_subject(self, subject: str):
+        if self.subject != subject:
+            self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)
 
 
 class Bookmarks(LegacyBookmarks[str, MUC]):

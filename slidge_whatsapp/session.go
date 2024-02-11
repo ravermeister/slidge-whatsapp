@@ -220,7 +220,18 @@ func (s *Session) SendMessage(message Message) error {
 		payload = s.client.BuildEdit(s.device.JID().ToNonAD(), message.ID, s.getMessagePayload(message))
 	case MessageRevoke:
 		// Don't send message, but revoke existing message by ID.
-		payload = s.client.BuildRevoke(s.device.JID().ToNonAD(), types.EmptyJID, message.ID)
+		var originJID types.JID
+		if message.OriginJID == "" {
+			// A message retraction by the person who sent it
+			originJID = types.EmptyJID
+		} else {
+			// A message moderation
+			originJID, err = types.ParseJID(message.OriginJID)
+			if err != nil {
+				return fmt.Errorf("Could not parse sender JID for message: %s", err)
+			}
+		}
+		payload = s.client.BuildRevoke(jid, originJID, message.ID)
 	case MessageReaction:
 		// Send message as emoji reaction to a given message.
 		payload = &proto.Message{
@@ -491,6 +502,34 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 
 		return s.client.SetGroupPhoto(jid, avatar)
 	}
+}
+
+// SetGroupName updates the name of a WhatsApp group
+func (s *Session) SetGroupName(resourceID, name string) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("Cannot set group name for unauthenticated session")
+	}
+
+	jid, err := types.ParseJID(resourceID)
+	if err != nil {
+		return fmt.Errorf("Could not parse JID for group name change: %s", err)
+	}
+
+	return s.client.SetGroupName(jid, name)
+}
+
+// SetGroupTopic updates the topic of a WhatsApp group
+func (s *Session) SetGroupTopic(resourceID, topic string) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("Cannot set group topic for unauthenticated session")
+	}
+
+	jid, err := types.ParseJID(resourceID)
+	if err != nil {
+		return fmt.Errorf("Could not parse JID for group topic change: %s", err)
+	}
+
+	return s.client.SetGroupTopic(jid, "", "", topic)
 }
 
 // FindContact attempts to check for a registered contact on WhatsApp corresponding to the given

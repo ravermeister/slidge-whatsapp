@@ -205,6 +205,7 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 		case proto.ProtocolMessage_REVOKE:
 			message.Kind = MessageRevoke
 			message.ID = p.Key.GetId()
+			message.OriginJID = p.Key.GetParticipant()
 			return EventMessage, &EventPayload{Message: message}
 		}
 	}
