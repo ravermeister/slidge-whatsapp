@@ -68,7 +68,7 @@ var (
 			"-f", "ogg", "-c:a", "libopus", // Convert to Ogg with Opus.
 			"-ac", "1", // Convert to mono.
 			"-ar", "48000", // Use specific sample-rate of 48000hz.
-			"-b:a", "16k", // Use relatively small bit-rate of 16kBit/s.
+			"-b:a", "64k", // Use relatively reasonable bit-rate of 64kBit/s.
 			"-map_metadata", "-1", // Remove all metadata from output.
 		},
 	}
@@ -122,13 +122,12 @@ func convertAttachment(attach *Attachment) error {
 		}
 	}
 
-	// MP4 audio files are matched as `audio/m4a` which is not a valid MIME, correct this to
-	// `audio/mp4`, which is what WhatsApp requires as well.
-	if detectedMIME == "audio/m4a" {
-		detectedMIME = "audio/mp4"
-	}
-
 	switch detectedMIME {
+	case "audio/m4a":
+		// MP4 audio files are matched as `audio/m4a` which is not a valid MIME, correct this to
+		// `audio/mp4`, which is what WhatsApp requires as well.
+		detectedMIME = "audio/mp4"
+		fallthrough
 	case "audio/mp4", "audio/ogg":
 		if err := populateAttachmentMetadata(attach); err == nil {
 			switch attach.meta.codec {
@@ -136,7 +135,7 @@ func convertAttachment(attach *Attachment) error {
 			// wants to retain these characteristics. Since WhatsApp will try (and likely fail)
 			// to process this as an audio message anyways, set a unique MIME type.
 			case "alac":
-				detectedMIME += "; codecs=" + attach.meta.codec
+				attach.MIME = "application/octet-stream"
 				return nil
 			case "opus":
 				detectedMIME += "; codecs=" + attach.meta.codec
