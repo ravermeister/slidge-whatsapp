@@ -5,7 +5,8 @@ ARG PYTHONVER
 ENV PATH="/venv/bin:/root/.local/bin:$PATH"
 
 # rust/cargo is for building "cryptography" since they don't provide wheels for arm32
-RUN apt-get update -y && apt-get install -y --no-install-recommends \
+RUN echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list \
+    && apt-get update -y && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
     cargo \
@@ -18,7 +19,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     pkg-config \
     python3-dev \
     rustc \
-    golang
+    && apt-get install -y golang -t bookworm-backports
 
 RUN pip install poetry
 RUN python3 -m venv /venv
