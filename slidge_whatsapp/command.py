@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class Logout(Command):
-    NAME = "Disconnect from WhatsApp"
+    NAME = "🔓 Disconnect from WhatsApp"
     HELP = (
         "Disconnects active WhatsApp session without removing any linked device credentials. "
         "To re-connect, use the 're-login' command."
@@ -43,7 +43,7 @@ class Logout(Command):
 
 
 class PairPhone(Command):
-    NAME = "Complete registration via phone number"
+    NAME = "📱 Complete registration via phone number"
     HELP = (
         "As an alternative to QR code verification, this allows you to complete registration "
         "by inputing a one-time code into the official WhatsApp client; this requires that you "
@@ -77,7 +77,7 @@ class PairPhone(Command):
 
 
 class ChangePresence(Command):
-    NAME = "Set WhatsApp web presence"
+    NAME = "📴 Set WhatsApp web presence"
     HELP = (
         "If you want to receive notifications in the WhatsApp official client,"
         "you need to set your presence to unavailable. As a side effect, you "
@@ -123,7 +123,7 @@ class ChangePresence(Command):
 
 
 class SubscribeToPresences(Command):
-    NAME = "Subscribe to contacts' presences"
+    NAME = "🔔 Subscribe to contacts' presences"
     HELP = (
         "Subscribes to and refreshes contacts' presences; typically this is "
         "done automatically, but re-subscribing might be useful in case contact "
