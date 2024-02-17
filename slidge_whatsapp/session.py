@@ -227,7 +227,7 @@ class Session(BaseSession[str, Recipient]):
                 carbon=message.IsCarbon,
             )
         elif message.Kind == whatsapp.MessageRevoke:
-            if message.OriginJID == message.JID:
+            if muc is None or message.OriginJID == message.JID:
                 contact.retract(legacy_msg_id=message.ID, carbon=message.IsCarbon)
             else:
                 contact.moderate(legacy_msg_id=message.ID)
