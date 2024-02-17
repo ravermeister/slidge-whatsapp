@@ -443,6 +443,17 @@ class Session(BaseSession[str, Recipient]):
         """
         self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else "")
 
+    async def on_create_group(
+        self, name: str, contacts: list[Contact]  # type:ignore
+    ):
+        """
+        Creates a WhatsApp group for the given human-readable name and participant list.
+        """
+        group = self.whatsapp.CreateGroup(
+            name, go.Slice_string([c.legacy_id for c in contacts])
+        )
+        return await self.bookmarks.legacy_id_to_jid_local_part(group.JID)
+
     async def on_search(self, form_values: dict[str, str]):
         """
         Searches for, and automatically adds, WhatsApp contact based on phone number. Phone numbers

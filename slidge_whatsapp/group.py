@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.util.types import Mention
+from slidge.util.types import Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
 from .generated import whatsapp
@@ -88,13 +88,15 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             if data.Action == whatsapp.GroupParticipantActionRemove:
                 self.remove_participant(participant)
             else:
-                participant.affiliation = "member"
                 if data.Affiliation == whatsapp.GroupAffiliationAdmin:
                     participant.affiliation = "admin"
                     participant.role = "moderator"
                 elif data.Affiliation == whatsapp.GroupAffiliationOwner:
                     participant.affiliation = "owner"
                     participant.role = "moderator"
+                else:
+                    participant.affiliation = "member"
+                    participant.role = "participant"
 
     def replace_mentions(self, t: str):
         return replace_whatsapp_mentions(
@@ -127,6 +129,29 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     async def on_set_subject(self, subject: str):
         if self.subject != subject:
             self.session.whatsapp.SetGroupTopic(self.legacy_id, subject)
+
+    async def on_set_affiliation(
+        self,
+        contact: "Contact",  # type:ignore
+        affiliation: MucAffiliation,
+        reason: Optional[str],
+        nickname: Optional[str],
+    ):
+        if affiliation == "member":
+            if contact in self._participants_by_contacts:
+                change = "demote"
+            else:
+                change = "add"
+        elif affiliation == "admin":
+            change = "promote"
+        elif affiliation == "outcast" or affiliation == "none":
+            change = "remove"
+        else:
+            raise XMPPError(
+                "bad-request",
+                f"You can't make a participant '{affiliation}' in whatsapp",
+            )
+        self.session.whatsapp.SetAffiliation(self.legacy_id, contact.legacy_id, change)
 
 
 class Bookmarks(LegacyBookmarks[str, MUC]):
