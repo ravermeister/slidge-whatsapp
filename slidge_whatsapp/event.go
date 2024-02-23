@@ -51,7 +51,7 @@ type EventPayload struct {
 	Call         Call
 }
 
-// A Avatar represents a small image representing a Contact or Group.
+// A Avatar represents a small image set for a Contact or Group.
 type Avatar struct {
 	ID  string // The unique ID for this avatar, used for persistent caching.
 	URL string // The HTTP URL over which this avatar might be retrieved. Can change for the same ID.
@@ -149,6 +149,8 @@ type Message struct {
 	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
 	Preview     Preview      // A short description for the URL provided in the message body, if any.
 	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
+	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
+	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
 }
 
 // A Attachment represents additional binary data (e.g. images, videos, documents) provided alongside
@@ -220,28 +222,15 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	}
 
 	// Handle message attachments, if any.
-	if attach, err := getMessageAttachments(client, evt.Message); err != nil {
+	if attach, context, err := getMessageAttachments(client, evt.Message); err != nil {
 		client.Log.Errorf("Failed getting message attachments: %s", err)
 		return EventUnknown, nil
 	} else if len(attach) > 0 {
 		message.Attachments = append(message.Attachments, attach...)
 		message.Kind = MessageAttachment
-	}
-
-	// Get contact vCard from message, if any, converting it into an inline attachment.
-	if c := evt.Message.GetContactMessage(); c != nil {
-		tmp, err := createTempFile([]byte(c.GetVcard()))
-		if err != nil {
-			client.Log.Errorf("Failed getting contact message: %s", err)
-			return EventUnknown, nil
+		if context != nil {
+			message = getMessageWithContext(message, context)
 		}
-		message.Attachments = append(message.Attachments, Attachment{
-			MIME:     "text/vcard",
-			Filename: c.GetDisplayName() + ".vcf",
-			Path:     tmp,
-		})
-		message.Kind = MessageAttachment
-		message = getMessageWithContext(message, c.GetContextInfo())
 	}
 
 	// Get extended information from message, if available. Extended messages typically represent
@@ -286,8 +275,9 @@ func getMessageWithContext(message Message, info *proto.ContextInfo) Message {
 
 // GetMessageAttachments fetches and decrypts attachments (images, audio, video, or documents) sent
 // via WhatsApp. Any failures in retrieving any attachment will return an error immediately.
-func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]Attachment, error) {
+func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]Attachment, *proto.ContextInfo, error) {
 	var result []Attachment
+	var context *proto.ContextInfo
 	var kinds = []whatsmeow.DownloadableMessage{
 		message.GetImageMessage(),
 		message.GetAudioMessage(),
@@ -325,19 +315,33 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 		// Attempt to download and decrypt raw attachment data, if any.
 		data, err := client.Download(msg)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		tmp, err := createTempFile(data)
 		if err != nil {
-			return nil, fmt.Errorf("failed writing to temporary file: %w", err)
+			return nil, nil, fmt.Errorf("failed writing to temporary file: %w", err)
 		}
 
 		a.Path = tmp
 		result = append(result, a)
 	}
 
-	return result, nil
+	// Handle any contact vCard as attachment.
+	if c := message.GetContactMessage(); c != nil {
+		tmp, err := createTempFile([]byte(c.GetVcard()))
+		if err != nil {
+			return nil, nil, fmt.Errorf("Failed getting contact message: %w", err)
+		}
+		result = append(result, Attachment{
+			MIME:     "text/vcard",
+			Filename: c.GetDisplayName() + ".vcf",
+			Path:     tmp,
+		})
+		context = c.GetContextInfo()
+	}
+
+	return result, context, nil
 }
 
 // KnownMediaTypes represents MIME type to WhatsApp media types known to be handled by WhatsApp in a
@@ -482,6 +486,127 @@ func extensionByType(typ string) string {
 	return ".bin"
 }
 
+// NewEventFromHistory returns event data meant for [Session.propagateEvent] for the primive history
+// message given. Currently, only events related to group-chats will be handled, due to uncertain
+// support for history back-fills on 1:1 chats.
+//
+// Otherwise, the implementation largely follows that of [newMessageEvent], however the base types
+// used by these two functions differ in many small ways which prevent unifying the approach.
+//
+// Typically, this will return [EventMessage] events with appropriate [Message] payloads; unknown or
+// invalid messages will return an [EventUnknown] event with nil data.
+func newEventFromHistory(client *whatsmeow.Client, info *proto.WebMessageInfo) (EventKind, *EventPayload) {
+	// Handle message as group message is remote JID is a group JID in the absence of any other,
+	// specific signal, or don't handle at all if no group JID is found.
+	var jid = info.GetKey().GetRemoteJid()
+	if j, _ := types.ParseJID(jid); j.Server != types.GroupServer {
+		return EventUnknown, nil
+	}
+
+	// Set basic data for message, to be potentially amended depending on the concrete version of
+	// the underlying message.
+	var message = Message{
+		Kind:      MessagePlain,
+		ID:        info.GetKey().GetId(),
+		GroupJID:  info.GetKey().GetRemoteJid(),
+		Body:      info.GetMessage().GetConversation(),
+		Timestamp: int64(info.GetMessageTimestamp()),
+		IsCarbon:  info.GetKey().GetFromMe(),
+	}
+
+	if info.Participant != nil {
+		message.JID = info.GetParticipant()
+	} else if info.GetKey().GetFromMe() {
+		message.JID = client.Store.ID.ToNonAD().String()
+	} else {
+		// It's likely we cannot handle this message correctly if we don't know the concrete
+		// sender, so just ignore it completely.
+		return EventUnknown, nil
+	}
+
+	// Handle handle protocol messages (such as message deletion or editing), while ignoring known
+	// unhandled types.
+	switch info.GetMessageStubType() {
+	case proto.WebMessageInfo_CIPHERTEXT:
+		return EventUnknown, nil
+	case proto.WebMessageInfo_CALL_MISSED_VOICE, proto.WebMessageInfo_CALL_MISSED_VIDEO:
+		return EventCall, &EventPayload{Call: Call{
+			State:     CallMissed,
+			JID:       info.GetKey().GetRemoteJid(),
+			Timestamp: int64(info.GetMessageTimestamp()),
+		}}
+	case proto.WebMessageInfo_REVOKE:
+		if p := info.GetMessageStubParameters(); len(p) > 0 {
+			message.Kind = MessageRevoke
+			message.ID = p[0]
+			return EventMessage, &EventPayload{Message: message}
+		} else {
+			return EventUnknown, nil
+		}
+	}
+
+	// Handle emoji reaction to existing message.
+	for _, r := range info.GetReactions() {
+		if r.GetText() != "" {
+			message.Reactions = append(message.Reactions, Message{
+				Kind:      MessageReaction,
+				ID:        r.GetKey().GetId(),
+				JID:       r.GetKey().GetRemoteJid(),
+				Body:      r.GetText(),
+				Timestamp: r.GetSenderTimestampMs() / 1000,
+				IsCarbon:  r.GetKey().GetFromMe(),
+			})
+		}
+	}
+
+	// Handle message attachments, if any.
+	if attach, context, err := getMessageAttachments(client, info.GetMessage()); err != nil {
+		client.Log.Errorf("Failed getting message attachments: %s", err)
+		return EventUnknown, nil
+	} else if len(attach) > 0 {
+		message.Attachments = append(message.Attachments, attach...)
+		message.Kind = MessageAttachment
+		if context != nil {
+			message = getMessageWithContext(message, context)
+		}
+	}
+
+	// Handle pre-set receipt status, if any.
+	for _, r := range info.GetUserReceipt() {
+		// Ignore self-receipts for the moment, as these cannot be handled correctly by the adapter.
+		if client.Store.ID.ToNonAD().String() == r.GetUserJid() {
+			continue
+		}
+		var receipt = Receipt{MessageIDs: []string{message.ID}, JID: r.GetUserJid(), GroupJID: message.GroupJID}
+		switch info.GetStatus() {
+		case proto.WebMessageInfo_DELIVERY_ACK:
+			receipt.Kind = ReceiptDelivered
+			receipt.Timestamp = r.GetReceiptTimestamp()
+		case proto.WebMessageInfo_READ:
+			receipt.Kind = ReceiptRead
+			receipt.Timestamp = r.GetReadTimestamp()
+		}
+		message.Receipts = append(message.Receipts, receipt)
+	}
+
+	// Get extended information from message, if available. Extended messages typically represent
+	// messages with additional context, such as replies, forwards, etc.
+	if e := info.GetMessage().GetExtendedTextMessage(); e != nil {
+		if message.Body == "" {
+			message.Body = e.GetText()
+		}
+
+		message = getMessageWithContext(message, e.GetContextInfo())
+	}
+
+	// Ignore obviously invalid messages.
+	if message.Kind == MessagePlain && message.Body == "" {
+		return EventUnknown, nil
+	}
+
+	return EventMessage, &EventPayload{Message: message}
+}
+
 // ChatStateKind represents the different kinds of chat-states possible in WhatsApp.
 type ChatStateKind int
 
@@ -577,7 +702,7 @@ const (
 )
 
 // A Group represents a named, many-to-many chat space which may be joined or left at will. All
-// fields apart from the group JID, are considered to be optional, and may not be set in cases where
+// fields apart from the group JID are considered to be optional, and may not be set in cases where
 // group information is being updated against previous assumed state. Groups in WhatsApp are
 // generally invited to out-of-band with respect to overarching adaptor; see the documentation for
 // [Session.GetGroups] for more information.
@@ -616,9 +741,9 @@ type GroupParticipant struct {
 	Action      GroupParticipantAction // The specific action to take for this participant; typically to add.
 }
 
-// NewReceiptEvent returns event data meant for [Session.propagateEvent] for the primive group
-// event given. Group data returned by this function can be partial, and callers should take care
-// to only handle non-empty values.
+// NewGroupEvent returns event data meant for [Session.propagateEvent] for the primive group event
+// given. Group data returned by this function can be partial, and callers should take care to only
+// handle non-empty values.
 func newGroupEvent(evt *events.GroupInfo) (EventKind, *EventPayload) {
 	var group = Group{JID: evt.JID.ToNonAD().String()}
 	if evt.Name != nil {
