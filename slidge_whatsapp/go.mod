@@ -9,7 +9,7 @@ require (
 	github.com/h2non/filetype v1.1.3
 	github.com/mattn/go-sqlite3 v1.14.22
 	go.mau.fi/libsignal v0.1.0
-	go.mau.fi/whatsmeow v0.0.0-20240214134033-43138278d3ed
+	go.mau.fi/whatsmeow v0.0.0-20240223131828-1bdd11e8ee3e
 	golang.org/x/image v0.15.0
 )
 
