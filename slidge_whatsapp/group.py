@@ -100,15 +100,17 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             self.user_nick = info.Nickname
         if info.Name:
             self.name = info.Name
-        if info.Subject.Subject or info.Subject.SetAt:
+        if info.Subject.Subject:
             self.subject = info.Subject.Subject
-        if info.Subject.SetAt:
-            set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
-            self.subject_date = set_at
-        if info.Subject.SetByJID:
-            participant = await self.get_participant_by_legacy_id(info.Subject.SetByJID)
-            if name := participant.nickname:
-                self.subject_setter = name
+            if info.Subject.SetAt:
+                set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
+                self.subject_date = set_at
+            if info.Subject.SetByJID:
+                participant = await self.get_participant_by_legacy_id(
+                    info.Subject.SetByJID
+                )
+                if name := participant.nickname:
+                    self.subject_setter = name
         for data in info.Participants:
             participant = await self.get_participant_by_legacy_id(data.JID)
             if data.Action == whatsapp.GroupParticipantActionRemove:
