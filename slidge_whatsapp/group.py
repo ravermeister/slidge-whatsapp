@@ -66,17 +66,22 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         """
         Request history for messages older than the oldest message given by ID and date.
         """
-        if oldest_message_id not in self.session.muc_sent_msg_ids:
+        if (
+            oldest_message_id is not None
+            and oldest_message_id not in self.session.muc_sent_msg_ids
+        ):
             # WhatsApp requires a full reference to the last seen message in performing on-demand sync.
             return
         oldest_message = whatsapp.Message(
             ID=oldest_message_id or "",
-            IsCarbon=self.session.message_is_carbon(self, oldest_message_id)
-            if oldest_message_id
-            else False,
-            Timestamp=int(oldest_message_date.timestamp())
-            if oldest_message_date
-            else 0,
+            IsCarbon=(
+                self.session.message_is_carbon(self, oldest_message_id)
+                if oldest_message_id
+                else False
+            ),
+            Timestamp=(
+                int(oldest_message_date.timestamp()) if oldest_message_date else 0
+            ),
         )
         self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
 
