@@ -66,17 +66,22 @@ class MUC(LegacyMUC[str, str, Participant, str]):
         """
         Request history for messages older than the oldest message given by ID and date.
         """
-        if oldest_message_id not in self.session.muc_sent_msg_ids:
+        if (
+            oldest_message_id is not None
+            and oldest_message_id not in self.session.muc_sent_msg_ids
+        ):
             # WhatsApp requires a full reference to the last seen message in performing on-demand sync.
             return
         oldest_message = whatsapp.Message(
             ID=oldest_message_id or "",
-            IsCarbon=self.session.message_is_carbon(self, oldest_message_id)
-            if oldest_message_id
-            else False,
-            Timestamp=int(oldest_message_date.timestamp())
-            if oldest_message_date
-            else 0,
+            IsCarbon=(
+                self.session.message_is_carbon(self, oldest_message_id)
+                if oldest_message_id
+                else False
+            ),
+            Timestamp=(
+                int(oldest_message_date.timestamp()) if oldest_message_date else 0
+            ),
         )
         self.session.whatsapp.RequestMessageHistory(self.legacy_id, oldest_message)
 
@@ -95,15 +100,17 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             self.user_nick = info.Nickname
         if info.Name:
             self.name = info.Name
-        if info.Subject.Subject or info.Subject.SetAt:
+        if info.Subject.Subject:
             self.subject = info.Subject.Subject
-        if info.Subject.SetAt:
-            set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
-            self.subject_date = set_at
-        if info.Subject.SetByJID:
-            participant = await self.get_participant_by_legacy_id(info.Subject.SetByJID)
-            if name := participant.nickname:
-                self.subject_setter = name
+            if info.Subject.SetAt:
+                set_at = datetime.fromtimestamp(info.Subject.SetAt, tz=timezone.utc)
+                self.subject_date = set_at
+            if info.Subject.SetByJID:
+                participant = await self.get_participant_by_legacy_id(
+                    info.Subject.SetByJID
+                )
+                if name := participant.nickname:
+                    self.subject_setter = name
         for data in info.Participants:
             participant = await self.get_participant_by_legacy_id(data.JID)
             if data.Action == whatsapp.GroupParticipantActionRemove:
