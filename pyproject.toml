@@ -30,7 +30,7 @@ branch = "master"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.21.0"
-black = "^23.3.0"
+black = "^24"
 isort = "^5.12.0"
 ruff = "^0.0.261"
 mypy = "^1.2.0"

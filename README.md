@@ -28,6 +28,7 @@ for general info on how to set up an XMPP server component.
 From [dockerhub](https://hub.docker.com/r/nicocool84/slidge-whatsapp)
 
 ```sh
+# use ravermeister/slidge-whatsapp for arm64 (thanks raver! <3)
 docker run docker.io/nicocool84/slidge-whatsapp
 ```
 

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional
 from slidge.command import Command, CommandAccess, Form, FormField
 from slidge.util import is_valid_phone_number
 from slixmpp import JID
+from slixmpp.exceptions import XMPPError
 
 from .generated import whatsapp
 
@@ -10,8 +11,39 @@ if TYPE_CHECKING:
     from .session import Session
 
 
+class Logout(Command):
+    NAME = "🔓 Disconnect from WhatsApp"
+    HELP = (
+        "Disconnects active WhatsApp session without removing any linked device credentials. "
+        "To re-connect, use the 're-login' command."
+    )
+    NODE = "wa_logout"
+    CHAT_COMMAND = "logout"
+    ACCESS = CommandAccess.USER_LOGGED
+
+    async def run(
+        self,
+        session: Optional["Session"],  # type:ignore
+        ifrom: JID,
+        *args,
+    ) -> Form:
+        assert session is not None
+        try:
+            msg = session.shutdown()
+        except Exception as e:
+            session.send_gateway_status(f"Logout failed: {e}", show="dnd")
+            raise XMPPError(
+                "internal-server-error",
+                etype="wait",
+                text=f"Could not logout WhatsApp session: {e}",
+            )
+        session.send_gateway_message(msg or "Logged out successfully")
+        session.send_gateway_status(msg or "Logged out", show="away")
+        return msg
+
+
 class PairPhone(Command):
-    NAME = "Complete registration via phone number"
+    NAME = "📱 Complete registration via phone number"
     HELP = (
         "As an alternative to QR code verification, this allows you to complete registration "
         "by inputing a one-time code into the official WhatsApp client; this requires that you "
@@ -45,7 +77,7 @@ class PairPhone(Command):
 
 
 class ChangePresence(Command):
-    NAME = "Set WhatsApp web presence"
+    NAME = "📴 Set WhatsApp web presence"
     HELP = (
         "If you want to receive notifications in the WhatsApp official client,"
         "you need to set your presence to unavailable. As a side effect, you "
@@ -91,10 +123,11 @@ class ChangePresence(Command):
 
 
 class SubscribeToPresences(Command):
-    NAME = "Subscribe to contacts' presences"
+    NAME = "🔔 Subscribe to contacts' presences"
     HELP = (
-        "This command is here for tests about "
-        "https://todo.sr.ht/~nicoco/slidge-whatsapp/7 ."
+        "Subscribes to and refreshes contacts' presences; typically this is "
+        "done automatically, but re-subscribing might be useful in case contact "
+        "presences are stuck or otherwise not updating."
     )
     NODE = "wa_subscribe"
     CHAT_COMMAND = "subscribe"
