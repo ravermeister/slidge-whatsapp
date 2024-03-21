@@ -15,7 +15,6 @@ variables:
   DOCKER_CREDENTIAL_HELPER_ARCHITECTURE: linux-arm64
   SYNC_ONLY: "false"
   SLIDGE_MODULE: "slidge-whatsapp"
-  SLIDGE_MODULE_DEV: "slidge-whatsapp-dev"
   GIT_UPSTREAM_REPO_NAME: source-hut
   GIT_UPSTREAM_REPO_URL: https://git.sr.ht/~nicoco/${SLIDGE_MODULE}
   GIT_UPSTREAM_REPO_BRANCH: master
