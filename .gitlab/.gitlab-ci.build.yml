@@ -42,11 +42,17 @@ image_arm64:
     - >
       docker buildx build --no-cache --force-rm --compress --load \
         --platform "linux/arm64" \
-#        --target "${SLIDGE_MODULE}" \
         --target "${SLIDGE_MODULE_DEV}" \
         -t "${SLIDGE_MODULE}" \
         -t "${CI_REGISTRY_IMAGE}:arm64" \
         .
+#    - >
+#      docker buildx build --no-cache --force-rm --compress --load \
+#        --platform "linux/arm64" \
+#        --target "${SLIDGE_MODULE}" \
+#        -t "${SLIDGE_MODULE}" \
+#        -t "${CI_REGISTRY_IMAGE}:arm64" \
+#        .
     - docker push "${CI_REGISTRY_IMAGE}:arm64"
 
 ### add tags to manifest
