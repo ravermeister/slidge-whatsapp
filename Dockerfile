@@ -40,8 +40,8 @@ RUN python3 -m pip install --requirement requirements.txt
 COPY ./slidge_whatsapp/*.go ./slidge_whatsapp/go.* /build/
 RUN gopy build -output=generated -no-make=true /build/
 
-#FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
-FROM docker.io/ravermeister/slidge-base AS slidge-whatsapp
+FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
+
 USER root
 RUN apt update -y && apt install ffmpeg -y
 
