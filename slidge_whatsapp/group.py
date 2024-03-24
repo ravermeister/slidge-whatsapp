@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from slidge.group import LegacyBookmarks, LegacyMUC, LegacyParticipant, MucType
-from slidge.util.types import Mention, MucAffiliation
+from slidge.util.types import Hat, Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
 from .generated import whatsapp
@@ -117,9 +117,15 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 self.remove_participant(participant)
             else:
                 if data.Affiliation == whatsapp.GroupAffiliationAdmin:
-                    participant.affiliation = "admin"
+                    # Only owners can change the group name according to
+                    # XEP-0045, so we make all "WA admins" "XMPP owners"
+                    participant.affiliation = "owner"
                     participant.role = "moderator"
                 elif data.Affiliation == whatsapp.GroupAffiliationOwner:
+                    # The WA owner is in fact the person who created the room
+                    participant.set_hats(
+                        [Hat("https://slidge.im/hats/slidge-whatsapp/owner", "Owner")]
+                    )
                     participant.affiliation = "owner"
                     participant.role = "moderator"
                 else:
