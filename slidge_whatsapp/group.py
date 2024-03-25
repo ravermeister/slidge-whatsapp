@@ -137,7 +137,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
             t,
             participants=(
                 {
-                    c.jid_username: c.name
+                    c.jid_username: p.nickname
                     for c, p in self._participants_by_contacts.items()
                 }
                 | {self.session.user_phone: self.user_nick}
