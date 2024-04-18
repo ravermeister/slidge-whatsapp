@@ -3,7 +3,6 @@ package whatsapp
 import (
 	// Standard library.
 	"fmt"
-	"net/http"
 	"os"
 	"runtime"
 
@@ -78,9 +77,8 @@ type Gateway struct {
 	TempDir string // The directory to create temporary files under.
 
 	// Internal variables.
-	container  *sqlstore.Container
-	httpClient *http.Client
-	logger     walog.Logger
+	container *sqlstore.Container
+	logger    walog.Logger
 }
 
 // NewGateway returns a new, un-initialized Gateway. This function should always be followed by calls

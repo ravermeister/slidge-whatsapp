@@ -431,7 +431,7 @@ func (s *Session) GetContacts(refresh bool) ([]Contact, error) {
 			s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
 		}
 
-		_, c := newContactEvent(s.client, jid, info)
+		_, c := newContactEvent(jid, info)
 		contacts = append(contacts, c.Contact)
 	}
 
@@ -701,7 +701,7 @@ func (s *Session) handleEvent(evt interface{}) {
 				if err != nil {
 					continue
 				}
-				s.propagateEvent(newContactEvent(s.client, jid, types.ContactInfo{FullName: n.GetPushname()}))
+				s.propagateEvent(newContactEvent(jid, types.ContactInfo{FullName: n.GetPushname()}))
 				if err = s.client.SubscribePresence(jid); err != nil {
 					s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
 				}
@@ -720,7 +720,7 @@ func (s *Session) handleEvent(evt interface{}) {
 	case *events.Presence:
 		s.propagateEvent(newPresenceEvent(evt))
 	case *events.PushName:
-		s.propagateEvent(newContactEvent(s.client, evt.JID, types.ContactInfo{FullName: evt.NewPushName}))
+		s.propagateEvent(newContactEvent(evt.JID, types.ContactInfo{FullName: evt.NewPushName}))
 	case *events.JoinedGroup:
 		s.propagateEvent(EventGroup, &EventPayload{Group: newGroup(s.client, &evt.GroupInfo)})
 	case *events.GroupInfo:

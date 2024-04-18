@@ -66,7 +66,7 @@ type Contact struct {
 
 // NewContactEvent returns event data meant for [Session.propagateEvent] for the contact information
 // given. Unknown or invalid contact information will return an [EventUnknown] event with nil data.
-func newContactEvent(c *whatsmeow.Client, jid types.JID, info types.ContactInfo) (EventKind, *EventPayload) {
+func newContactEvent(jid types.JID, info types.ContactInfo) (EventKind, *EventPayload) {
 	var contact = Contact{
 		JID: jid.ToNonAD().String(),
 	}
@@ -186,6 +186,11 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 		Body:      evt.Message.GetConversation(),
 		Timestamp: evt.Info.Timestamp.Unix(),
 		IsCarbon:  evt.Info.IsFromMe,
+	}
+
+	// Broadcast and status messages are currently not handled at all.
+	if evt.Info.Chat.Server == types.BroadcastServer {
+		return EventUnknown, nil
 	}
 
 	if evt.Info.IsGroup {
@@ -676,6 +681,11 @@ func newReceiptEvent(evt *events.Receipt) (EventKind, *EventPayload) {
 		return EventUnknown, nil
 	}
 
+	// Receipts for broadcast and status messages are currently not handled at all.
+	if evt.MessageSource.Chat.Server == types.BroadcastServer {
+		return EventUnknown, nil
+	}
+
 	if evt.MessageSource.IsGroup {
 		receipt.GroupJID = evt.MessageSource.Chat.ToNonAD().String()
 	} else if receipt.IsCarbon {
@@ -683,9 +693,9 @@ func newReceiptEvent(evt *events.Receipt) (EventKind, *EventPayload) {
 	}
 
 	switch evt.Type {
-	case events.ReceiptTypeDelivered:
+	case types.ReceiptTypeDelivered:
 		receipt.Kind = ReceiptDelivered
-	case events.ReceiptTypeRead:
+	case types.ReceiptTypeRead:
 		receipt.Kind = ReceiptRead
 	}
 
