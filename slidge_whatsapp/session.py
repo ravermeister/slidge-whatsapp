@@ -318,9 +318,14 @@ class Session(BaseSession[str, Recipient]):
                 if merged_resource["show"] in ["chat", ""]
                 else whatsapp.PresenceUnavailable
             )
-            self.whatsapp.SendPresence(
-                presence, merged_resource["status"] if merged_resource["status"] else ""
+            status = (
+                merged_resource["status"]
+                if self._presence_status != merged_resource["status"]
+                else ""
             )
+            if status:
+                self._presence_status = status
+            self.whatsapp.SendPresence(presence, status)
 
     async def on_active(self, c: Recipient, thread=None):
         """

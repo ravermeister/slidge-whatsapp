@@ -100,7 +100,7 @@ func (s *Session) Login() error {
 			select {
 			case <-timer.C:
 				if presence == PresenceAvailable {
-					s.GetContacts(false)
+					_, _ = s.GetContacts(false)
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				} else {
 					timerStopped = true
@@ -112,7 +112,7 @@ func (s *Session) Login() error {
 					}
 					return
 				} else if timerStopped && p == PresenceAvailable {
-					s.GetContacts(false)
+					_, _ = s.GetContacts(false)
 					timer, timerStopped = newTimer(presenceRefreshInterval), false
 				}
 				presence = p
