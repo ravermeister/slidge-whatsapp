@@ -26,10 +26,10 @@ class Logout(Command):
         session: Optional["Session"],  # type:ignore
         ifrom: JID,
         *args,
-    ) -> Form:
+    ) -> str:
         assert session is not None
         try:
-            msg = session.shutdown()
+            session.shutdown()
         except Exception as e:
             session.send_gateway_status(f"Logout failed: {e}", show="dnd")
             raise XMPPError(
@@ -37,9 +37,8 @@ class Logout(Command):
                 etype="wait",
                 text=f"Could not logout WhatsApp session: {e}",
             )
-        session.send_gateway_message(msg or "Logged out successfully")
-        session.send_gateway_status(msg or "Logged out", show="away")
-        return msg
+        session.send_gateway_status("Logged out", show="away")
+        return "Logged out successfully"
 
 
 class PairPhone(Command):
