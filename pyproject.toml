@@ -23,10 +23,7 @@ script = "build.py"
 python = "^3.9"
 linkpreview = "^0.6.5"
 pybindgen = "^0.22.1"
-
-[tool.poetry.dependencies.slidge]
-git = "https://git.sr.ht/~nicoco/slidge"
-branch = "master"
+slidge = "0.1.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.21.0"
