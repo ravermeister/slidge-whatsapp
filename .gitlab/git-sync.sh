@@ -11,7 +11,7 @@ CLONE_DIR="/opt/downstream_repo"
 
 
 sync_upstream() {
-  git clone "${REMOTE_URL}" "${CLONE_DIR}"
+  git clone --depth=20 "${REMOTE_URL}" "${CLONE_DIR}"
   CURRENT_DIR=$(pwd)
   cd "${CLONE_DIR}" || exit 1
   git remote add "${UPSTREAM_NAME}" "${UPSTREAM_URL}"
