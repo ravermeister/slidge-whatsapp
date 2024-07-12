@@ -5,11 +5,11 @@ go 1.21
 toolchain go1.21.5
 
 require (
-	github.com/go-python/gopy v0.4.9
+	github.com/go-python/gopy v0.4.10
 	github.com/h2non/filetype v1.1.3
 	github.com/mattn/go-sqlite3 v1.14.22
-	go.mau.fi/libsignal v0.1.0
-	go.mau.fi/whatsmeow v0.0.0-20240327124018-350073db195c
+	go.mau.fi/libsignal v0.1.1-0.20240705162345-47e713a595ab
+	go.mau.fi/whatsmeow v0.0.0-20240710112833-d732338c041f
 	golang.org/x/image v0.15.0
 )
 
@@ -19,10 +19,10 @@ require (
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/rs/zerolog v1.32.0 // indirect
-	go.mau.fi/util v0.4.2 // indirect
-	golang.org/x/crypto v0.22.0 // indirect
-	golang.org/x/net v0.24.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	github.com/rs/zerolog v1.33.0 // indirect
+	go.mau.fi/util v0.5.0 // indirect
+	golang.org/x/crypto v0.25.0 // indirect
+	golang.org/x/net v0.27.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 )

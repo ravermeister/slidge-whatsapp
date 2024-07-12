@@ -14,7 +14,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
-	"go.mau.fi/whatsmeow/binary/proto"
+	"go.mau.fi/whatsmeow/proto/waCommon"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -203,7 +205,7 @@ func (s *Session) SendMessage(message Message) error {
 		return fmt.Errorf("Could not parse sender JID for message: %s", err)
 	}
 
-	var payload *proto.Message
+	var payload *waE2E.Message
 	var extra whatsmeow.SendRequestExtra
 
 	switch message.Kind {
@@ -239,16 +241,16 @@ func (s *Session) SendMessage(message Message) error {
 		payload = s.client.BuildRevoke(jid, originJID, message.ID)
 	case MessageReaction:
 		// Send message as emoji reaction to a given message.
-		payload = &proto.Message{
-			ReactionMessage: &proto.ReactionMessage{
-				Key: &proto.MessageKey{
-					RemoteJid:   &message.JID,
+		payload = &waE2E.Message{
+			ReactionMessage: &waE2E.ReactionMessage{
+				Key: &waCommon.MessageKey{
+					RemoteJID:   &message.JID,
 					FromMe:      &message.IsCarbon,
-					Id:          &message.ID,
+					ID:          &message.ID,
 					Participant: &message.OriginJID,
 				},
 				Text:              &message.Body,
-				SenderTimestampMs: ptrTo(time.Now().UnixMilli()),
+				SenderTimestampMS: ptrTo(time.Now().UnixMilli()),
 			},
 		}
 	default:
@@ -269,8 +271,8 @@ const (
 // GetMessagePayload returns a concrete WhatsApp protocol message for the given Message representation.
 // The specific fields set within the protocol message, as well as its type, can depend on specific
 // fields set in the Message type, and may be nested recursively (e.g. when replying to a reply).
-func (s *Session) getMessagePayload(message Message) *proto.Message {
-	var payload *proto.Message
+func (s *Session) getMessagePayload(message Message) *waE2E.Message {
+	var payload *waE2E.Message
 
 	// Compose extended message when made as a reply to a different message.
 	if message.ReplyID != "" {
@@ -279,12 +281,12 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 		if message.OriginJID == "" {
 			message.OriginJID = s.device.JID().ToNonAD().String()
 		}
-		payload = &proto.Message{
-			ExtendedTextMessage: &proto.ExtendedTextMessage{
+		payload = &waE2E.Message{
+			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 				Text: &message.Body,
-				ContextInfo: &proto.ContextInfo{
-					StanzaId:      &message.ReplyID,
-					QuotedMessage: &proto.Message{Conversation: ptrTo(message.ReplyBody)},
+				ContextInfo: &waE2E.ContextInfo{
+					StanzaID:      &message.ReplyID,
+					QuotedMessage: &waE2E.Message{Conversation: ptrTo(message.ReplyBody)},
 					Participant:   &message.OriginJID,
 				},
 			},
@@ -294,7 +296,7 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 	// Add URL preview, if any was given in message.
 	if message.Preview.URL != "" {
 		if payload == nil {
-			payload = &proto.Message{ExtendedTextMessage: &proto.ExtendedTextMessage{Text: &message.Body}}
+			payload = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: &message.Body}}
 		}
 
 		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
@@ -302,7 +304,7 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 
 		if message.Preview.ImagePath != "" {
 			if buf, err := os.ReadFile(message.Preview.ImagePath); err == nil && len(buf) < maxPreviewThumbnailSize {
-				payload.ExtendedTextMessage.JpegThumbnail = buf
+				payload.ExtendedTextMessage.JPEGThumbnail = buf
 			}
 			os.Remove(message.Preview.ImagePath)
 		}
@@ -311,16 +313,16 @@ func (s *Session) getMessagePayload(message Message) *proto.Message {
 	// Attach any inline mentions extended metadata.
 	if len(message.MentionJIDs) > 0 {
 		if payload == nil {
-			payload = &proto.Message{ExtendedTextMessage: &proto.ExtendedTextMessage{Text: &message.Body}}
+			payload = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: &message.Body}}
 		}
 		if payload.ExtendedTextMessage.ContextInfo == nil {
-			payload.ExtendedTextMessage.ContextInfo = &proto.ContextInfo{}
+			payload.ExtendedTextMessage.ContextInfo = &waE2E.ContextInfo{}
 		}
-		payload.ExtendedTextMessage.ContextInfo.MentionedJid = message.MentionJIDs
+		payload.ExtendedTextMessage.ContextInfo.MentionedJID = message.MentionJIDs
 	}
 
 	if payload == nil {
-		payload = &proto.Message{Conversation: &message.Body}
+		payload = &waE2E.Message{Conversation: &message.Body}
 	}
 
 	return payload
@@ -695,7 +697,7 @@ func (s *Session) handleEvent(evt interface{}) {
 		}
 	case *events.HistorySync:
 		switch evt.Data.GetSyncType() {
-		case proto.HistorySync_PUSH_NAME:
+		case waHistorySync.HistorySync_PUSH_NAME:
 			for _, n := range evt.Data.GetPushnames() {
 				jid, err := types.ParseJID(n.GetId())
 				if err != nil {
@@ -706,7 +708,7 @@ func (s *Session) handleEvent(evt interface{}) {
 					s.gateway.logger.Warnf("Failed to subscribe to presence for %s", jid)
 				}
 			}
-		case proto.HistorySync_INITIAL_BOOTSTRAP, proto.HistorySync_RECENT, proto.HistorySync_ON_DEMAND:
+		case waHistorySync.HistorySync_INITIAL_BOOTSTRAP, waHistorySync.HistorySync_RECENT, waHistorySync.HistorySync_ON_DEMAND:
 			for _, c := range evt.Data.GetConversations() {
 				for _, msg := range c.GetMessages() {
 					s.propagateEvent(newEventFromHistory(s.client, msg.GetMessage()))
