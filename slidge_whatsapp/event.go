@@ -10,7 +10,8 @@ import (
 
 	// Third-party libraries.
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/binary/proto"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -202,17 +203,17 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	// Handle handle protocol messages (such as message deletion or editing).
 	if p := evt.Message.GetProtocolMessage(); p != nil {
 		switch p.GetType() {
-		case proto.ProtocolMessage_MESSAGE_EDIT:
+		case waE2E.ProtocolMessage_MESSAGE_EDIT:
 			if m := p.GetEditedMessage(); m != nil {
 				message.Kind = MessageEdit
-				message.ID = p.Key.GetId()
+				message.ID = p.Key.GetID()
 				message.Body = m.GetConversation()
 			} else {
 				return EventUnknown, nil
 			}
-		case proto.ProtocolMessage_REVOKE:
+		case waE2E.ProtocolMessage_REVOKE:
 			message.Kind = MessageRevoke
-			message.ID = p.Key.GetId()
+			message.ID = p.Key.GetID()
 			message.OriginJID = p.Key.GetParticipant()
 			return EventMessage, &EventPayload{Message: message}
 		}
@@ -221,7 +222,7 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 	// Handle emoji reaction to existing message.
 	if r := evt.Message.GetReactionMessage(); r != nil {
 		message.Kind = MessageReaction
-		message.ID = r.Key.GetId()
+		message.ID = r.Key.GetID()
 		message.Body = r.GetText()
 		return EventMessage, &EventPayload{Message: message}
 	}
@@ -259,12 +260,12 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 // GetMessageWithContext processes the given [Message] and applies any context metadata might be
 // useful; examples of context include messages being quoted. If no context is found, the original
 // message is returned unchanged.
-func getMessageWithContext(message Message, info *proto.ContextInfo) Message {
+func getMessageWithContext(message Message, info *waE2E.ContextInfo) Message {
 	if info == nil {
 		return message
 	}
 
-	message.ReplyID = info.GetStanzaId()
+	message.ReplyID = info.GetStanzaID()
 	message.OriginJID = info.GetParticipant()
 
 	if q := info.GetQuotedMessage(); q != nil {
@@ -280,9 +281,9 @@ func getMessageWithContext(message Message, info *proto.ContextInfo) Message {
 
 // GetMessageAttachments fetches and decrypts attachments (images, audio, video, or documents) sent
 // via WhatsApp. Any failures in retrieving any attachment will return an error immediately.
-func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]Attachment, *proto.ContextInfo, error) {
+func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]Attachment, *waE2E.ContextInfo, error) {
 	var result []Attachment
-	var context *proto.ContextInfo
+	var context *waE2E.ContextInfo
 	var kinds = []whatsmeow.DownloadableMessage{
 		message.GetImageMessage(),
 		message.GetAudioMessage(),
@@ -295,15 +296,15 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 		// Handle data for specific attachment type.
 		var a Attachment
 		switch msg := msg.(type) {
-		case *proto.ImageMessage:
+		case *waE2E.ImageMessage:
 			a.MIME, a.Caption = msg.GetMimetype(), msg.GetCaption()
-		case *proto.AudioMessage:
+		case *waE2E.AudioMessage:
 			a.MIME = msg.GetMimetype()
-		case *proto.VideoMessage:
+		case *waE2E.VideoMessage:
 			a.MIME, a.Caption = msg.GetMimetype(), msg.GetCaption()
-		case *proto.DocumentMessage:
+		case *waE2E.DocumentMessage:
 			a.MIME, a.Caption, a.Filename = msg.GetMimetype(), msg.GetCaption(), msg.GetFileName()
-		case *proto.StickerMessage:
+		case *waE2E.StickerMessage:
 			a.MIME = msg.GetMimetype()
 		}
 
@@ -314,7 +315,7 @@ func getMessageAttachments(client *whatsmeow.Client, message *proto.Message) ([]
 
 		// Set filename from SHA256 checksum and MIME type, if none is already set.
 		if a.Filename == "" {
-			a.Filename = fmt.Sprintf("%x%s", msg.GetFileSha256(), extensionByType(a.MIME))
+			a.Filename = fmt.Sprintf("%x%s", msg.GetFileSHA256(), extensionByType(a.MIME))
 		}
 
 		// Attempt to download and decrypt raw attachment data, if any.
@@ -364,7 +365,7 @@ var knownMediaTypes = map[string]whatsmeow.MediaType{
 // type specified within. Attachments are handled as generic file uploads unless they're of a
 // specific format; in addition, certain MIME types may be automatically converted to a
 // well-supported type via FFmpeg (if available).
-func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*proto.Message, error) {
+func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Message, error) {
 	var originalMIME = attach.MIME
 	if err := convertAttachment(attach); err != nil {
 		client.Log.Warnf("failed to auto-convert attachment: %s", err)
@@ -387,17 +388,17 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*proto.Mess
 		return nil, err
 	}
 
-	var message *proto.Message
+	var message *waE2E.Message
 	switch mediaType {
 	case whatsmeow.MediaImage:
-		message = &proto.Message{
-			ImageMessage: &proto.ImageMessage{
-				Url:           &upload.URL,
+		message = &waE2E.Message{
+			ImageMessage: &waE2E.ImageMessage{
+				URL:           &upload.URL,
 				DirectPath:    &upload.DirectPath,
 				MediaKey:      upload.MediaKey,
 				Mimetype:      &attach.MIME,
-				FileEncSha256: upload.FileEncSHA256,
-				FileSha256:    upload.FileSHA256,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(data))),
 			},
 		}
@@ -407,20 +408,20 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*proto.Mess
 				client.Log.Warnf("failed fetching attachment metadata: %s", err)
 			}
 		}
-		message = &proto.Message{
-			AudioMessage: &proto.AudioMessage{
-				Url:           &upload.URL,
+		message = &waE2E.Message{
+			AudioMessage: &waE2E.AudioMessage{
+				URL:           &upload.URL,
 				DirectPath:    &upload.DirectPath,
 				MediaKey:      upload.MediaKey,
 				Mimetype:      &attach.MIME,
-				FileEncSha256: upload.FileEncSHA256,
-				FileSha256:    upload.FileSHA256,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(data))),
 				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
 			},
 		}
 		if attach.MIME == voiceMessageMIME {
-			message.AudioMessage.Ptt = ptrTo(true)
+			message.AudioMessage.PTT = ptrTo(true)
 			if wave, err := getAttachmentWaveform(attach); err != nil {
 				client.Log.Warnf("failed generating attachment waveform: %s", err)
 			} else {
@@ -433,14 +434,14 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*proto.Mess
 				client.Log.Warnf("failed fetching attachment metadata: %s", err)
 			}
 		}
-		message = &proto.Message{
-			VideoMessage: &proto.VideoMessage{
-				Url:           &upload.URL,
+		message = &waE2E.Message{
+			VideoMessage: &waE2E.VideoMessage{
+				URL:           &upload.URL,
 				DirectPath:    &upload.DirectPath,
 				MediaKey:      upload.MediaKey,
 				Mimetype:      &attach.MIME,
-				FileEncSha256: upload.FileEncSHA256,
-				FileSha256:    upload.FileSHA256,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(data))),
 				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
 				Width:         ptrTo(uint32(attach.meta.width)),
@@ -449,20 +450,20 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*proto.Mess
 		if thumb, err := getAttachmentThumbnail(attach); err != nil {
 			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
 		} else {
-			message.VideoMessage.JpegThumbnail = thumb
+			message.VideoMessage.JPEGThumbnail = thumb
 		}
 		if originalMIME == animatedImageMIME {
 			message.VideoMessage.GifPlayback = ptrTo(true)
 		}
 	case whatsmeow.MediaDocument:
-		message = &proto.Message{
-			DocumentMessage: &proto.DocumentMessage{
-				Url:           &upload.URL,
+		message = &waE2E.Message{
+			DocumentMessage: &waE2E.DocumentMessage{
+				URL:           &upload.URL,
 				DirectPath:    &upload.DirectPath,
 				MediaKey:      upload.MediaKey,
 				Mimetype:      &attach.MIME,
-				FileEncSha256: upload.FileEncSHA256,
-				FileSha256:    upload.FileSHA256,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(data))),
 				FileName:      &attach.Filename,
 			}}
@@ -500,10 +501,10 @@ func extensionByType(typ string) string {
 //
 // Typically, this will return [EventMessage] events with appropriate [Message] payloads; unknown or
 // invalid messages will return an [EventUnknown] event with nil data.
-func newEventFromHistory(client *whatsmeow.Client, info *proto.WebMessageInfo) (EventKind, *EventPayload) {
+func newEventFromHistory(client *whatsmeow.Client, info *waWeb.WebMessageInfo) (EventKind, *EventPayload) {
 	// Handle message as group message is remote JID is a group JID in the absence of any other,
 	// specific signal, or don't handle at all if no group JID is found.
-	var jid = info.GetKey().GetRemoteJid()
+	var jid = info.GetKey().GetRemoteJID()
 	if j, _ := types.ParseJID(jid); j.Server != types.GroupServer {
 		return EventUnknown, nil
 	}
@@ -512,8 +513,8 @@ func newEventFromHistory(client *whatsmeow.Client, info *proto.WebMessageInfo) (
 	// the underlying message.
 	var message = Message{
 		Kind:      MessagePlain,
-		ID:        info.GetKey().GetId(),
-		GroupJID:  info.GetKey().GetRemoteJid(),
+		ID:        info.GetKey().GetID(),
+		GroupJID:  info.GetKey().GetRemoteJID(),
 		Body:      info.GetMessage().GetConversation(),
 		Timestamp: int64(info.GetMessageTimestamp()),
 		IsCarbon:  info.GetKey().GetFromMe(),
@@ -532,15 +533,15 @@ func newEventFromHistory(client *whatsmeow.Client, info *proto.WebMessageInfo) (
 	// Handle handle protocol messages (such as message deletion or editing), while ignoring known
 	// unhandled types.
 	switch info.GetMessageStubType() {
-	case proto.WebMessageInfo_CIPHERTEXT:
+	case waWeb.WebMessageInfo_CIPHERTEXT:
 		return EventUnknown, nil
-	case proto.WebMessageInfo_CALL_MISSED_VOICE, proto.WebMessageInfo_CALL_MISSED_VIDEO:
+	case waWeb.WebMessageInfo_CALL_MISSED_VOICE, waWeb.WebMessageInfo_CALL_MISSED_VIDEO:
 		return EventCall, &EventPayload{Call: Call{
 			State:     CallMissed,
-			JID:       info.GetKey().GetRemoteJid(),
+			JID:       info.GetKey().GetRemoteJID(),
 			Timestamp: int64(info.GetMessageTimestamp()),
 		}}
-	case proto.WebMessageInfo_REVOKE:
+	case waWeb.WebMessageInfo_REVOKE:
 		if p := info.GetMessageStubParameters(); len(p) > 0 {
 			message.Kind = MessageRevoke
 			message.ID = p[0]
@@ -555,10 +556,10 @@ func newEventFromHistory(client *whatsmeow.Client, info *proto.WebMessageInfo) (
 		if r.GetText() != "" {
 			message.Reactions = append(message.Reactions, Message{
 				Kind:      MessageReaction,
-				ID:        r.GetKey().GetId(),
-				JID:       r.GetKey().GetRemoteJid(),
+				ID:        r.GetKey().GetID(),
+				JID:       r.GetKey().GetRemoteJID(),
 				Body:      r.GetText(),
-				Timestamp: r.GetSenderTimestampMs() / 1000,
+				Timestamp: r.GetSenderTimestampMS() / 1000,
 				IsCarbon:  r.GetKey().GetFromMe(),
 			})
 		}
@@ -579,15 +580,15 @@ func newEventFromHistory(client *whatsmeow.Client, info *proto.WebMessageInfo) (
 	// Handle pre-set receipt status, if any.
 	for _, r := range info.GetUserReceipt() {
 		// Ignore self-receipts for the moment, as these cannot be handled correctly by the adapter.
-		if client.Store.ID.ToNonAD().String() == r.GetUserJid() {
+		if client.Store.ID.ToNonAD().String() == r.GetUserJID() {
 			continue
 		}
-		var receipt = Receipt{MessageIDs: []string{message.ID}, JID: r.GetUserJid(), GroupJID: message.GroupJID}
+		var receipt = Receipt{MessageIDs: []string{message.ID}, JID: r.GetUserJID(), GroupJID: message.GroupJID}
 		switch info.GetStatus() {
-		case proto.WebMessageInfo_DELIVERY_ACK:
+		case waWeb.WebMessageInfo_DELIVERY_ACK:
 			receipt.Kind = ReceiptDelivered
 			receipt.Timestamp = r.GetReceiptTimestamp()
-		case proto.WebMessageInfo_READ:
+		case waWeb.WebMessageInfo_READ:
 			receipt.Kind = ReceiptRead
 			receipt.Timestamp = r.GetReadTimestamp()
 		}
