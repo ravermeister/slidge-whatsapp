@@ -272,7 +272,7 @@ type attachmentMetadata struct {
 
 // PopulateAttachmentMetadata calculates and populates secondary information for the given
 // audio/video attachment, if any. Metadata is gathered on a best-effort basis, and may be missing;
-// see the documentation for [attachmentMetata] for more information.
+// see the documentation for [attachmentMetadata] for more information.
 func populateAttachmentMetadata(attach *Attachment) error {
 	if ffprobeCommand == "" {
 		return fmt.Errorf("FFprobe command not found")
