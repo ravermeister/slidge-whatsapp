@@ -30,14 +30,14 @@ tasks:
         docker buildx build . \
           --target wheel \
           -o ./dist-mess/ \
-          --platform linux/arm64,linux/amd64 \
+          --platform linux/amd64 \
           --build-arg PYTHONVER=$PYTHONVER
       done
       mkdir dist
       # both platform build an non-specific source dist package
-      mv dist-mess/linux_amd64/*.tar.gz dist/
+      mv dist-mess/*.tar.gz dist/
       # wheels are platform-specific
-      mv dist-mess/*/*.whl dist/
+      mv dist-mess/*.whl dist/
       tar cvf ~/packages.tar dist/*
   - publish: |
       if [ -z "$PYPI" ]; then
