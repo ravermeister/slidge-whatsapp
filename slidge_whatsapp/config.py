@@ -3,15 +3,23 @@ Config contains plugin-specific configuration for WhatsApp, and is loaded automa
 core configuration framework.
 """
 
+from pathlib import Path
+from typing import Optional
+
 from slidge import global_config
 
-# FIXME: workaround because global_config.HOME_DIR is not defined unless
-#        called by slidge's main(), which is a problem for test and docs
+# workaround because global_config.HOME_DIR is not defined unless
+# called by slidge's main(), which is a problem for tests, docs and the
+# dedicated slidge-whatsapp setuptools entrypoint
 try:
-    DB_PATH = global_config.HOME_DIR / "whatsapp" / "whatsapp.db"
-    DB_PATH__DOC = "The path to the database used for the WhatsApp plugin."
+    DB_PATH: Optional[Path] = global_config.HOME_DIR / "whatsapp" / "whatsapp.db"
 except AttributeError:
-    pass
+    DB_PATH: Optional[Path] = None  # type:ignore
+
+DB_PATH__DOC = (
+    "The path to the database used for the WhatsApp plugin. Default to "
+    "${SLIDGE_HOME_DIR}/whatsapp/whatsapp.db"
+)
 
 ALWAYS_SYNC_ROSTER = False
 ALWAYS_SYNC_ROSTER__DOC = (
