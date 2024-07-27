@@ -44,6 +44,7 @@ class Gateway(BaseGateway):
 
     def __init__(self):
         super().__init__()
+        assert config.DB_PATH is not None
         Path(config.DB_PATH.parent).mkdir(exist_ok=True)
         (global_config.HOME_DIR / "tmp").mkdir(exist_ok=True)
         self.whatsapp = whatsapp.NewGateway()
