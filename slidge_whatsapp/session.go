@@ -15,8 +15,8 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waCommon"
-	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -574,6 +574,7 @@ func (s *Session) SetGroupTopic(resourceID, topic string) error {
 	}
 
 	return s.client.SetGroupTopic(jid, "", "", topic)
+
 }
 
 func (s *Session) SetAffiliation(groupID, participantID string, change whatsmeow.ParticipantChange) ([]types.GroupParticipant, error) {
@@ -699,7 +700,7 @@ func (s *Session) handleEvent(evt interface{}) {
 		switch evt.Data.GetSyncType() {
 		case waHistorySync.HistorySync_PUSH_NAME:
 			for _, n := range evt.Data.GetPushnames() {
-				jid, err := types.ParseJID(n.GetId())
+				jid, err := types.ParseJID(n.GetID())
 				if err != nil {
 					continue
 				}
@@ -729,10 +730,10 @@ func (s *Session) handleEvent(evt interface{}) {
 		s.propagateEvent(newGroupEvent(evt))
 	case *events.ChatPresence:
 		s.propagateEvent(newChatStateEvent(evt))
+	case *events.CallOffer:
+		s.propagateEvent(newCallEvent(CallIncoming, evt.BasicCallMeta))
 	case *events.CallTerminate:
-		if evt.Reason == "timeout" {
-			s.propagateEvent(newCallEvent(CallMissed, evt.BasicCallMeta))
-		}
+		s.propagateEvent(newCallEvent(callStateFromReason(evt.Reason), evt.BasicCallMeta))
 	case *events.LoggedOut:
 		s.client.Disconnect()
 		if err := s.client.Store.Delete(); err != nil {

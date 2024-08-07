@@ -180,14 +180,13 @@ class Session(BaseSession[str, Recipient]):
 
     async def handle_call(self, call: whatsapp.Call):
         contact = await self.contacts.by_legacy_id(call.JID)
-        if call.State == whatsapp.CallMissed:
-            text = "Missed call"
+        text = f"from {contact.name or 'tel:' + str(contact.jid.local)} (xmpp:{contact.jid.bare})"
+        if call.State == whatsapp.CallIncoming:
+            text = "Incoming call " + text
+        elif call.State == whatsapp.CallMissed:
+            text = "Missed call " + text
         else:
-            text = "Call"
-        text = (
-            text
-            + f" from {contact.name or 'tel:' + str(contact.jid.local)} (xmpp:{contact.jid.bare})"
-        )
+            text = "Call " + text
         if call.Timestamp > 0:
             call_at = datetime.fromtimestamp(call.Timestamp, tz=timezone.utc)
             text = text + f" at {call_at}"

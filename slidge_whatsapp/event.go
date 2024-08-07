@@ -834,8 +834,21 @@ type CallState int
 
 // The call states handled by the overarching session event handler.
 const (
-	CallMissed CallState = 1 + iota
+	CallUnknown CallState = iota
+	CallIncoming
+	CallMissed
 )
+
+// CallStateFromReason converts the given (internal) reason string to a public [CallState]. Calls
+// given invalid or unknown reasons will return the [CallUnknown] state.
+func callStateFromReason(reason string) CallState {
+	switch reason {
+	case "", "timeout":
+		return CallMissed
+	default:
+		return CallUnknown
+	}
+}
 
 // A Call represents an incoming or outgoing voice/video call made over WhatsApp. Full support for
 // calls is currently not implemented, and this structure contains the bare minimum data required
@@ -848,6 +861,10 @@ type Call struct {
 
 // NewCallEvent returns event data meant for [Session.propagateEvent] for the call metadata given.
 func newCallEvent(state CallState, meta types.BasicCallMeta) (EventKind, *EventPayload) {
+	if state == CallUnknown || meta.From.IsEmpty() {
+		return EventUnknown, nil
+	}
+
 	return EventCall, &EventPayload{Call: Call{
 		State:     state,
 		JID:       meta.From.ToNonAD().String(),
