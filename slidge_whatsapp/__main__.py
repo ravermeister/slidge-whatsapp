@@ -1,9 +1,3 @@
-from slidge import entrypoint
+from slidge_whatsapp import main
 
-
-def main():
-    entrypoint("slidge_whatsapp")
-
-
-if __name__ == "__main__":
-    main()
+main()

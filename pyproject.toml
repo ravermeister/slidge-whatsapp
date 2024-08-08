@@ -48,7 +48,7 @@ requires = ["poetry-core", "pybindgen"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-slidge-whatsapp = 'slidge_whatsapp.__main__:main'
+slidge-whatsapp = 'slidge_whatsapp:main'
 
 [tool.mypy]
 files = ["slidge_whatsapp"]
