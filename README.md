@@ -42,7 +42,7 @@ With [pipx](https://pypa.github.io/pipx/):
 pipx install slidge-whatsapp
 
 # for the bleeding edge
-pipx install slidge-whatsapp \
+pipx install slidge-whatsapp==0.0.0.dev0 \
     --pip-args='--extra-index-url https://slidge.im/repo'
 
 slidge-whatsapp --help
