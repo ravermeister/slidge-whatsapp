@@ -45,6 +45,10 @@ pipx install slidge-whatsapp
 pipx install slidge-whatsapp==0.0.0.dev0 \
     --pip-args='--extra-index-url https://slidge.im/repo'
 
+# to update bleeding edge installs
+pipx install slidge-whatsapp==0.0.0.dev0 \
+    --pip-args='--extra-index-url https://slidge.im/repo' --force
+
 slidge-whatsapp --help
 ```
 
