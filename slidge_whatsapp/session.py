@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
@@ -71,10 +72,11 @@ class Session(BaseSession[str, Recipient]):
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
         self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
         self.whatsapp.SetEventHandler(self._handle_event)
-        self._connected = self.xmpp.loop.create_future()
+        self.__reset_connected()
         self.user_phone: Optional[str] = None
         self._presence_status: str = ""
         self._lock = Lock()
+        self.wa_participants = dict[str, list[whatsapp.GroupParticipant]]()
 
     def migrate(self):
         user_shelf_path = (
@@ -96,14 +98,20 @@ class Session(BaseSession[str, Recipient]):
                 self.legacy_module_data_set({"device_id": device_id})
         user_shelf_path.unlink()
 
+    def __reset_connected(self):
+        if hasattr(self, "_connected"):
+            if not self._connected.done():
+                self.xmpp.loop.call_soon_threadsafe(self._connected.cancel)
+        self._connected: asyncio.Future[str] = self.xmpp.loop.create_future()
+
     async def login(self):
         """
         Initiate login process and connect session to WhatsApp. Depending on existing state, login
         might either return having initiated the Linked Device registration process in the background,
         or will re-connect to a previously existing Linked Device session.
         """
+        self.__reset_connected()
         self.whatsapp.Login()
-        self._connected = self.xmpp.loop.create_future()
         return await self._connected
 
     async def logout(self):
@@ -137,7 +145,9 @@ class Session(BaseSession[str, Recipient]):
             else:
                 self.contacts.user_legacy_id = data.ConnectedJID
                 self.user_phone = "+" + data.ConnectedJID.split("@")[0]
-                self._connected.set_result(self.__get_connected_status_message())
+                self.xmpp.loop.call_soon_threadsafe(
+                    self._connected.set_result, self.__get_connected_status_message()
+                )
         elif event == whatsapp.EventLoggedOut:
             self.logged = False
             self.send_gateway_message(MESSAGE_LOGGED_OUT)
