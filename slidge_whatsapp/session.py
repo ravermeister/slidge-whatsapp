@@ -486,7 +486,8 @@ class Session(BaseSession[str, Recipient]):
         group = self.whatsapp.CreateGroup(
             name, go.Slice_string([c.legacy_id for c in contacts])
         )
-        return await self.bookmarks.legacy_id_to_jid_local_part(group.JID)
+        muc = await self.bookmarks.by_legacy_id(group.JID)
+        return muc.legacy_id
 
     async def on_search(self, form_values: dict[str, str]):
         """
