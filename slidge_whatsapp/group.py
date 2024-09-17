@@ -7,8 +7,7 @@ from slidge.util.archive_msg import HistoryMessage
 from slidge.util.types import Hat, HoleBound, Mention, MucAffiliation
 from slixmpp.exceptions import XMPPError
 
-from .generated import whatsapp
-from .util import get_bytes_temp
+from .generated import go, whatsapp
 
 if TYPE_CHECKING:
     from .contact import Contact
@@ -24,16 +23,16 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     session: "Session"
     type = MucType.GROUP
 
+    HAS_DESCRIPTION = False
     REACTIONS_SINGLE_EMOJI = True
     _ALL_INFO_FILLED_ON_STARTUP = True
-
-    HAS_DESCRIPTION = False
 
     async def update_info(self):
         try:
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
         except RuntimeError:
-            # no avatar
+            # No avatar.
+            # TODO: Figure out if errors are actually returned when no avatar is set.
             await self.set_avatar(None)
         else:
             if avatar.URL:
@@ -142,7 +141,8 @@ class MUC(LegacyMUC[str, str, Participant, str]):
 
     async def on_avatar(self, data: Optional[bytes], mime: Optional[str]) -> None:
         return self.session.whatsapp.SetAvatar(
-            self.legacy_id, await get_bytes_temp(data) if data else ""
+            self.legacy_id,
+            go.Slice_byte.from_bytes(data) if data else go.Slice_byte(),
         )
 
     async def on_set_config(

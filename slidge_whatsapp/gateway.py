@@ -27,6 +27,7 @@ class Gateway(BaseGateway):
     COMPONENT_NAME = "WhatsApp (slidge)"
     COMPONENT_TYPE = "whatsapp"
     COMPONENT_AVATAR = "https://www.whatsapp.com/apple-touch-icon.png"
+    ROSTER_GROUP = "WhatsApp"
 
     REGISTRATION_INSTRUCTIONS = REGISTRATION_INSTRUCTIONS
     WELCOME_MESSAGE = WELCOME_MESSAGE
@@ -35,8 +36,6 @@ class Gateway(BaseGateway):
     SEARCH_FIELDS = [
         FormField(var="phone", label="Phone number", required=True),
     ]
-
-    ROSTER_GROUP = "WhatsApp"
 
     MARK_ALL_MESSAGES = True
     GROUPS = True
@@ -70,10 +69,8 @@ class Gateway(BaseGateway):
         session: "Session" = self.get_session_from_user(user)  # type:ignore
         session.whatsapp.Logout()
         try:
-            device = whatsapp.LinkedDevice(
-                ID=session.user.legacy_module_data["device_id"]
-            )
-            self.whatsapp.CleanupSession(device)
+            device_id = session.user.legacy_module_data["device_id"]
+            self.whatsapp.CleanupSession(whatsapp.LinkedDevice(ID=device_id))
         except KeyError:
             pass
         except RuntimeError as err:

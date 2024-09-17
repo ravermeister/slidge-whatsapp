@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"mime"
-	"os"
 	"strings"
 
 	// Third-party libraries.
@@ -160,7 +159,7 @@ type Attachment struct {
 	MIME     string // The MIME type for attachment.
 	Filename string // The recommended file name for this attachment. May be an auto-generated name.
 	Caption  string // The user-provided caption, provided alongside this attachment.
-	Path     string // Local path to the file is stored on disk.
+	Data     []byte // Data for the attachment.
 
 	// Internal fields.
 	meta attachmentMetadata // Metadata specific to audio/video files, used in processing.
@@ -172,7 +171,7 @@ type Preview struct {
 	URL         string // The original (or canonical) URL this preview was generated for.
 	Title       string // The short title for the URL preview.
 	Description string // The (optional) long-form description for the URL preview.
-	ImagePath   string // The local path for the image associated with the URL.
+	Thumbnail   []byte // The (optional) thumbnail image data.
 }
 
 // NewMessageEvent returns event data meant for [Session.propagateEvent] for the primive message
@@ -324,25 +323,16 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 			return nil, nil, err
 		}
 
-		tmp, err := createTempFile(data)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed writing to temporary file: %w", err)
-		}
-
-		a.Path = tmp
+		a.Data = data
 		result = append(result, a)
 	}
 
 	// Handle any contact vCard as attachment.
 	if c := message.GetContactMessage(); c != nil {
-		tmp, err := createTempFile([]byte(c.GetVcard()))
-		if err != nil {
-			return nil, nil, fmt.Errorf("Failed getting contact message: %w", err)
-		}
 		result = append(result, Attachment{
 			MIME:     "text/vcard",
 			Filename: c.GetDisplayName() + ".vcf",
-			Path:     tmp,
+			Data:     []byte(c.GetVcard()),
 		})
 		context = c.GetContextInfo()
 	}
@@ -376,14 +366,11 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 		mediaType = whatsmeow.MediaDocument
 	}
 
-	data, err := os.ReadFile(attach.Path)
-	if err != nil {
-		return nil, err
-	} else if len(data) == 0 {
+	if len(attach.Data) == 0 {
 		return nil, fmt.Errorf("attachment file contains no data")
 	}
 
-	upload, err := client.Upload(context.Background(), data, mediaType)
+	upload, err := client.Upload(context.Background(), attach.Data, mediaType)
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +386,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(data))),
+				FileLength:    ptrTo(uint64(len(attach.Data))),
 			},
 		}
 	case whatsmeow.MediaAudio:
@@ -416,7 +403,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(data))),
+				FileLength:    ptrTo(uint64(len(attach.Data))),
 				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
 			},
 		}
@@ -442,7 +429,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(data))),
+				FileLength:    ptrTo(uint64(len(attach.Data))),
 				Seconds:       ptrTo(uint32(attach.meta.duration.Seconds())),
 				Width:         ptrTo(uint32(attach.meta.width)),
 				Height:        ptrTo(uint32(attach.meta.height)),
@@ -464,7 +451,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				Mimetype:      &attach.MIME,
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
-				FileLength:    ptrTo(uint64(len(data))),
+				FileLength:    ptrTo(uint64(len(attach.Data))),
 				FileName:      &attach.Filename,
 			}}
 	}
