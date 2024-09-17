@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 	"runtime"
 	"time"
 
@@ -215,8 +214,6 @@ func (s *Session) SendMessage(message Message) error {
 			return nil
 		}
 
-		defer os.Remove(message.Attachments[0].Path)
-
 		// Upload attachment into WhatsApp before sending message.
 		if payload, err = uploadAttachment(s.client, &message.Attachments[0]); err != nil {
 			return fmt.Errorf("Failed uploading attachment: %s", err)
@@ -302,11 +299,11 @@ func (s *Session) getMessagePayload(message Message) *waE2E.Message {
 		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
 		payload.ExtendedTextMessage.Title = &message.Preview.Title
 
-		if message.Preview.ImagePath != "" {
-			if buf, err := os.ReadFile(message.Preview.ImagePath); err == nil && len(buf) < maxPreviewThumbnailSize {
-				payload.ExtendedTextMessage.JPEGThumbnail = buf
+		if len(message.Preview.Thumbnail) > 0 && len(message.Preview.Thumbnail) < maxPreviewThumbnailSize {
+			tmp := &Attachment{Data: message.Preview.Thumbnail}
+			if err := convertImage(tmp); err == nil {
+				payload.ExtendedTextMessage.JPEGThumbnail = tmp.Data
 			}
-			os.Remove(message.Preview.ImagePath)
 		}
 	}
 
@@ -512,17 +509,13 @@ func (s *Session) GetAvatar(resourceID, avatarID string) (Avatar, error) {
 // SetAvatar updates the profile picture for the Contact or Group JID given; it can also update the
 // profile picture for our own user by providing an empty JID. The unique picture ID is returned,
 // typically used as a cache reference or in providing to future calls for [Session.GetAvatar].
-func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
+func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 	if s.client == nil || s.client.Store.ID == nil {
 		return "", fmt.Errorf("Cannot set avatar for unauthenticated session")
 	}
 
 	var jid types.JID
 	var err error
-
-	if avatarPath != "" {
-		defer os.Remove(avatarPath)
-	}
 
 	// Setting the profile picture for the user expects an empty `resourceID`.
 	if resourceID == "" {
@@ -531,20 +524,16 @@ func (s *Session) SetAvatar(resourceID, avatarPath string) (string, error) {
 		return "", fmt.Errorf("Could not parse JID for avatar: %s", err)
 	}
 
-	if avatarPath == "" {
+	if len(avatar) == 0 {
 		return s.client.SetGroupPhoto(jid, nil)
 	} else {
 		// Ensure avatar is in JPEG format, and convert before setting if needed.
-		if err = convertImage(&Attachment{Path: avatarPath}); err != nil {
+		attach := &Attachment{Data: avatar}
+		if err = convertImage(attach); err != nil {
 			return "", fmt.Errorf("Failed converting avatar to JPEG: %s", err)
 		}
 
-		avatar, err := os.ReadFile(avatarPath)
-		if err != nil {
-			return "", fmt.Errorf("Failed reading avatar: %s", err)
-		}
-
-		return s.client.SetGroupPhoto(jid, avatar)
+		return s.client.SetGroupPhoto(jid, attach.Data)
 	}
 }
 

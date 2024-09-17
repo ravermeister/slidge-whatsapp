@@ -165,8 +165,10 @@ func createTempFile(data []byte) (string, error) {
 	defer f.Close()
 	if len(data) > 0 {
 		if n, err := f.Write(data); err != nil {
+			os.Remove(f.Name())
 			return "", fmt.Errorf("failed writing to temporary file: %w", err)
 		} else if n < len(data) {
+			os.Remove(f.Name())
 			return "", fmt.Errorf("failed writing to temporary file: incomplete write, want %d, write %d bytes", len(data), n)
 		}
 	}
