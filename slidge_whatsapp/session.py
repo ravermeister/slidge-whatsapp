@@ -38,6 +38,7 @@ MESSAGE_LOGGED_OUT = (
 )
 
 URL_SEARCH_REGEX = r"(?P<url>https?://[^\s]+)"
+GEO_URI_SEARCH_REGEX = r"geo:(?P<lat>-?\d+(\.\d*)?),(?P<lon>-?\d+(\.\d*)?)(;u=(?P<acc>-?\d+(\.\d*)?))?"
 
 
 Recipient = Union[Contact, MUC]
@@ -216,6 +217,10 @@ class Session(BaseSession[str, Recipient]):
         if message.Kind == whatsapp.MessagePlain:
             if hasattr(contact, "muc"):
                 body = await contact.muc.replace_mentions(message.Body)
+            elif message.Location.Latitude > 0 or message.Location.Longitude > 0:
+                body = "geo:%f,%f" % (message.Location.Latitude, message.Location.Longitude),
+                if message.Location.Accuracy > 0:
+                    body = body + ";u=%d" % message.Location.Accuracy
             else:
                 body = message.Body
             contact.send_text(
@@ -279,11 +284,13 @@ class Session(BaseSession[str, Recipient]):
         """
         message_id = self.whatsapp.GenerateMessageID()
         message_preview = await self.__get_preview(text) or whatsapp.Preview()
+        message_location = await self.__get_location(text) or whatsapp.Location()
         message = whatsapp.Message(
             ID=message_id,
             JID=chat.legacy_id,
             Body=replace_xmpp_mentions(text, mentions) if mentions else text,
             Preview=message_preview,
+            Location=message_location,
             MentionJIDs=go.Slice_string([m.contact.legacy_id for m in mentions or []]),
         )
         set_reply_to(chat, message, reply_to_msg_id, reply_to_fallback_text, reply_to)
@@ -588,6 +595,20 @@ class Session(BaseSession[str, Recipient]):
             except Exception as e:
                 self.log.debug("Could not generate a preview for %s", url, exc_info=e)
                 return None
+
+    async def __get_location(self, text: str) -> Optional[whatsapp.Location]:
+        match = search(GEO_URI_SEARCH_REGEX, text)
+        if not match:
+            return None
+        latitude = match.group("lat")
+        longitude = match.group("lon")
+        if latitude == "" and longitude == "":
+            return None
+        return whatsapp.Location(
+            Latitude=float(latitude),
+            Longitude=float(longitude),
+            Accuracy=int(match.group("acc") or 0),
+        )
 
     async def __get_contact_or_participant(
         self, legacy_contact_id: str, legacy_group_jid: str

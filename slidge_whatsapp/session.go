@@ -318,6 +318,16 @@ func (s *Session) getMessagePayload(message Message) *waE2E.Message {
 		payload.ExtendedTextMessage.ContextInfo.MentionedJID = message.MentionJIDs
 	}
 
+	// Process any location information in message, if possible.
+	if message.Location.Latitude > 0 || message.Location.Longitude > 0 {
+		if payload == nil {
+			payload = &waE2E.Message{LocationMessage: &waE2E.LocationMessage{}}
+		}
+		payload.LocationMessage.DegreesLatitude = &message.Location.Latitude
+		payload.LocationMessage.DegreesLongitude = &message.Location.Longitude
+		payload.LocationMessage.AccuracyInMeters = ptrTo(uint32(message.Location.Accuracy))
+	}
+
 	if payload == nil {
 		payload = &waE2E.Message{Conversation: &message.Body}
 	}

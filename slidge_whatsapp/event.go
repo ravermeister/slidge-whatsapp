@@ -148,6 +148,7 @@ type Message struct {
 	ReplyBody   string       // The full body of the message this message is in reply to, if any.
 	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
 	Preview     Preview      // A short description for the URL provided in the message body, if any.
+	Location    Location     // The location metadata for messages, if any.
 	MentionJIDs []string     // A list of JIDs mentioned in this message, if any.
 	Receipts    []Receipt    // The receipt statuses for the message, typically provided alongside historical messages.
 	Reactions   []Message    // Reactions attached to message, typically provided alongside historical messages.
@@ -172,6 +173,19 @@ type Preview struct {
 	Title       string // The short title for the URL preview.
 	Description string // The (optional) long-form description for the URL preview.
 	Thumbnail   []byte // The (optional) thumbnail image data.
+}
+
+// A Location represents additional metadata given to location messages.
+type Location struct {
+	Latitude  float64
+	Longitude float64
+	Accuracy  int
+	IsLive    bool
+
+	// Optional fields given for named locations.
+	Name    string
+	Address string
+	URL     string
 }
 
 // NewMessageEvent returns event data meant for [Session.propagateEvent] for the primive message
@@ -223,6 +237,31 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 		message.Kind = MessageReaction
 		message.ID = r.Key.GetID()
 		message.Body = r.GetText()
+		return EventMessage, &EventPayload{Message: message}
+	}
+
+	// Handle location (static and live) message.
+	if l := evt.Message.GetLocationMessage(); l != nil {
+		message.Location = Location{
+			Latitude:  l.GetDegreesLatitude(),
+			Longitude: l.GetDegreesLongitude(),
+			Accuracy:  int(l.GetAccuracyInMeters()),
+			IsLive:    l.GetIsLive(),
+			Name:      l.GetName(),
+			Address:   l.GetAddress(),
+			URL:       l.GetURL(),
+		}
+		return EventMessage, &EventPayload{Message: message}
+	}
+
+	if l := evt.Message.GetLiveLocationMessage(); l != nil {
+		message.Body = l.GetCaption()
+		message.Location = Location{
+			Latitude:  l.GetDegreesLatitude(),
+			Longitude: l.GetDegreesLongitude(),
+			Accuracy:  int(l.GetAccuracyInMeters()),
+			IsLive:    true,
+		}
 		return EventMessage, &EventPayload{Message: message}
 	}
 
