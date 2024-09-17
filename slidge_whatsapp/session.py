@@ -20,6 +20,7 @@ from slidge.util.types import (
     PseudoPresenceShow,
     ResourceDict,
 )
+from slixmpp.exceptions import XMPPError
 
 from . import config
 from .contact import Contact, Roster
@@ -38,7 +39,9 @@ MESSAGE_LOGGED_OUT = (
 )
 
 URL_SEARCH_REGEX = r"(?P<url>https?://[^\s]+)"
-GEO_URI_SEARCH_REGEX = r"geo:(?P<lat>-?\d+(\.\d*)?),(?P<lon>-?\d+(\.\d*)?)(;u=(?P<acc>-?\d+(\.\d*)?))?"
+GEO_URI_SEARCH_REGEX = (
+    r"geo:(?P<lat>-?\d+(\.\d*)?),(?P<lon>-?\d+(\.\d*)?)(;u=(?P<acc>-?\d+(\.\d*)?))?"
+)
 
 
 Recipient = Union[Contact, MUC]
@@ -215,14 +218,7 @@ class Session(BaseSession[str, Recipient]):
             else None
         )
         if message.Kind == whatsapp.MessagePlain:
-            if hasattr(contact, "muc"):
-                body = await contact.muc.replace_mentions(message.Body)
-            elif message.Location.Latitude > 0 or message.Location.Longitude > 0:
-                body = "geo:%f,%f" % (message.Location.Latitude, message.Location.Longitude),
-                if message.Location.Accuracy > 0:
-                    body = body + ";u=%d" % message.Location.Accuracy
-            else:
-                body = message.Body
+            body = await self.__get_body(message, muc)
             contact.send_text(
                 body=body,
                 legacy_msg_id=message.ID,
@@ -312,7 +308,10 @@ class Session(BaseSession[str, Recipient]):
         """
         data = await get_url_bytes(self.http, url)
         if not data:
-            raise XMPPError("internal-server-error", "Unable to retrieve file from XMPP server, try again")
+            raise XMPPError(
+                "internal-server-error",
+                "Unable to retrieve file from XMPP server, try again",
+            )
         message_id = self.whatsapp.GenerateMessageID()
         message_attachment = whatsapp.Attachment(
             MIME=http_response.content_type,
@@ -482,7 +481,9 @@ class Session(BaseSession[str, Recipient]):
         """
         Update profile picture in WhatsApp for corresponding avatar change in XMPP.
         """
-        self.whatsapp.SetAvatar("", go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte())
+        self.whatsapp.SetAvatar(
+            "", go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte()
+        )
 
     async def on_create_group(
         self, name: str, contacts: list[Contact]  # type:ignore
@@ -529,6 +530,21 @@ class Session(BaseSession[str, Recipient]):
 
     def __get_connected_status_message(self):
         return f"Connected as {self.user_phone}"
+
+    async def __get_body(
+        self, message: whatsapp.Message, muc: Optional["MUC"] = None
+    ) -> str:
+        if muc:
+            body = await muc.replace_mentions(message.Body)
+        elif message.Location.Latitude > 0 or message.Location.Longitude > 0:
+            body = (
+                "geo:%f,%f" % (message.Location.Latitude, message.Location.Longitude),
+            )
+            if message.Location.Accuracy > 0:
+                body = body + ";u=%d" % message.Location.Accuracy
+        else:
+            body = message.Body
+        return body
 
     async def __get_reply_to(
         self, message: whatsapp.Message, muc: Optional["MUC"] = None
@@ -582,13 +598,18 @@ class Session(BaseSession[str, Recipient]):
             if not preview.title:
                 return None
             try:
+                thumbnail = (
+                    await get_url_bytes(self.http, preview.image)
+                    if preview.image
+                    else None
+                )
                 return whatsapp.Preview(
                     Title=preview.title,
                     Description=preview.description or "",
                     URL=url,
                     Thumbnail=(
-                        go.Slice_byte.from_bytes(await get_url_bytes(self.http, preview.image))
-                        if preview.image
+                        go.Slice_byte.from_bytes(thumbnail)
+                        if thumbnail
                         else go.Slice_byte()
                     ),
                 )
@@ -602,7 +623,7 @@ class Session(BaseSession[str, Recipient]):
             return None
         latitude = match.group("lat")
         longitude = match.group("lon")
-        if latitude == "" and longitude == "":
+        if latitude == "" or longitude == "":
             return None
         return whatsapp.Location(
             Latitude=float(latitude),
