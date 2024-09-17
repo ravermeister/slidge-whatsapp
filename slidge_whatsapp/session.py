@@ -2,11 +2,9 @@ import asyncio
 from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
-from os import fdopen
 from os.path import basename
 from pathlib import Path
 from re import search
-from tempfile import mkstemp
 from threading import Lock
 from typing import Any, Optional, Union, cast
 
@@ -28,7 +26,6 @@ from .contact import Contact, Roster
 from .gateway import Gateway
 from .generated import go, whatsapp
 from .group import MUC, Bookmarks, replace_xmpp_mentions
-from .util import get_bytes_temp
 
 MESSAGE_PAIR_SUCCESS = (
     "Pairing successful! You might need to repeat this process in the future if the"
@@ -306,11 +303,14 @@ class Session(BaseSession[str, Recipient]):
         """
         Send outgoing media message (i.e. audio, image, document) to given WhatsApp contact.
         """
+        data = await get_url_bytes(self.http, url)
+        if not data:
+            raise XMPPError("internal-server-error", "Unable to retrieve file from XMPP server, try again")
         message_id = self.whatsapp.GenerateMessageID()
         message_attachment = whatsapp.Attachment(
             MIME=http_response.content_type,
             Filename=basename(url),
-            Path=await get_url_temp(self.http, url),
+            Data=go.Slice_byte.from_bytes(data),
         )
         message = whatsapp.Message(
             Kind=whatsapp.MessageAttachment,
@@ -475,7 +475,7 @@ class Session(BaseSession[str, Recipient]):
         """
         Update profile picture in WhatsApp for corresponding avatar change in XMPP.
         """
-        self.whatsapp.SetAvatar("", await get_bytes_temp(bytes_) if bytes_ else "")
+        self.whatsapp.SetAvatar("", go.Slice_byte.from_bytes(bytes_) if bytes_ else go.Slice_byte())
 
     async def on_create_group(
         self, name: str, contacts: list[Contact]  # type:ignore
@@ -579,7 +579,11 @@ class Session(BaseSession[str, Recipient]):
                     Title=preview.title,
                     Description=preview.description or "",
                     URL=url,
-                    ImagePath=await get_url_temp(self.http, preview.image),
+                    Thumbnail=(
+                        go.Slice_byte.from_bytes(await get_url_bytes(self.http, preview.image))
+                        if preview.image
+                        else go.Slice_byte()
+                    ),
                 )
             except Exception as e:
                 self.log.debug("Could not generate a preview for %s", url, exc_info=e)
@@ -611,7 +615,7 @@ class Attachment(LegacyAttachment):
     ) -> "Attachment":
         return Attachment(
             content_type=wa_attachment.MIME,
-            path=wa_attachment.Path,
+            data=bytes(wa_attachment.Data),
             caption=(
                 wa_attachment.Caption
                 if muc is None
@@ -663,11 +667,8 @@ def set_reply_to(
     return message
 
 
-async def get_url_temp(client: ClientSession, url: str) -> Optional[str]:
-    temp_path = None
+async def get_url_bytes(client: ClientSession, url: str) -> Optional[bytes]:
     async with client.get(url) as resp:
         if resp.status == 200:
-            temp_file, temp_path = mkstemp(dir=global_config.HOME_DIR / "tmp")
-            with fdopen(temp_file, "wb") as f:
-                f.write(await resp.read())
-    return temp_path
+            return await resp.read()
+    return None

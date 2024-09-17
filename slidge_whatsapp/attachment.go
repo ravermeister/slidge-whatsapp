@@ -12,7 +12,6 @@ import (
 	"math"
 	"os"
 	"os/exec"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -115,7 +114,7 @@ var convertAttachmentTypes = map[string]convertAttachmentOptions{
 // type is unknown, or conversion is impossible, the original attachment is returned unchanged.
 func convertAttachment(attach *Attachment) error {
 	var detectedMIME string
-	if t, _ := filetype.MatchFile(attach.Path); t != filetype.Unknown {
+	if t, _ := filetype.Match(attach.Data); t != filetype.Unknown {
 		detectedMIME = t.MIME.Value
 		if attach.MIME == "" || attach.MIME == "application/octet-stream" {
 			attach.MIME = detectedMIME
@@ -171,34 +170,25 @@ const (
 )
 
 // ConvertImage processes the given Attachment, assumed to be an image of a supported format, and
-// converting to a JPEG-encoded image in-place. No arguments are processed currently.
+// converting into a JPEG-encoded image in-place.
 func convertImage(attach *Attachment, args ...string) error {
-	if stat, err := os.Stat(attach.Path); err != nil {
-		return err
-	} else if s := stat.Size(); s > maxImageSize {
-		return fmt.Errorf("attachment size %d exceeds maximum of %d", s, maxImageSize)
+	if t, _ := filetype.Match(attach.Data); t.MIME.Value == "image/jpeg" {
+		return nil
+	} else if len(attach.Data) > maxImageSize {
+		return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxImageSize)
 	}
 
-	f, err := os.OpenFile(attach.Path, os.O_RDWR, 0)
+	img, _, err := image.Decode(bytes.NewReader(attach.Data))
 	if err != nil {
 		return err
 	}
 
-	img, _, err := image.Decode(f)
-	if err != nil {
-		f.Close()
+	var buf bytes.Buffer
+	if err = jpeg.Encode(&buf, img, nil); err != nil {
 		return err
 	}
 
-	f.Close()
-	if f, err = os.Create(attach.Path); err != nil {
-		return err
-	}
-
-	if err = jpeg.Encode(f, img, nil); err != nil {
-		return err
-	}
-
+	attach.Data, attach.MIME = buf.Bytes(), "image/jpeg"
 	return nil
 }
 
@@ -207,20 +197,26 @@ func convertImage(attach *Attachment, args ...string) error {
 func convertAudioVideo(attach *Attachment, args ...string) error {
 	if ffmpegCommand == "" {
 		return fmt.Errorf("FFmpeg command not found")
-	} else if stat, err := os.Stat(attach.Path); err != nil {
-		return err
-	} else if s := stat.Size(); s > maxAudioVideoSize {
-		return fmt.Errorf("attachment size %d exceeds maximum of %d", s, maxAudioVideoSize)
+	} else if len(attach.Data) > maxAudioVideoSize {
+		return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxAudioVideoSize)
 	}
 
-	tmp, err := os.CreateTemp(path.Dir(attach.Path), path.Base(attach.Path)+".*")
+	tmpIn, err := createTempFile(attach.Data)
 	if err != nil {
-		return fmt.Errorf("failed creating temporary file: %w", err)
+		return err
 	}
 
-	args = append(ffmpegDefaultArgs, append([]string{"-i", attach.Path}, append(args, tmp.Name())...)...)
+	defer os.Remove(tmpIn)
+
+	tmpOut, err := createTempFile(nil)
+	if err != nil {
+		return err
+	}
+
+	defer os.Remove(tmpOut)
+
+	args = append(ffmpegDefaultArgs, append([]string{"-i", tmpIn}, append(args, tmpOut)...)...)
 	cmd := exec.Command(ffmpegCommand, args...)
-	tmp.Close()
 
 	if _, err := cmd.Output(); err != nil {
 		if e := new(exec.ExitError); errors.As(err, &e) {
@@ -229,34 +225,25 @@ func convertAudioVideo(attach *Attachment, args ...string) error {
 		return err
 	}
 
-	if err := os.Rename(tmp.Name(), attach.Path); err != nil {
-		return fmt.Errorf("failed cleaning up temporary file: %w", err)
+	data, err := os.ReadFile(tmpOut)
+	if err != nil {
+		return err
 	}
 
+	attach.Data = data
 	return nil
 }
 
 // GetAttachmentThumbnail returns a static thumbnail in JPEG format from the given Attachment, assumed
 // to point to a video file. If no thumbnail could be generated for any reason, this returns nil.
 func getAttachmentThumbnail(attach *Attachment) ([]byte, error) {
-	var tmp string
-	if data, err := os.ReadFile(attach.Path); err != nil {
-		return nil, fmt.Errorf("failed reading attachment %s: %w", attach.Path, err)
-	} else if tmp, err = createTempFile(data); err != nil {
+	tmp := &Attachment{Data: attach.Data}
+	err := convertAudioVideo(tmp, "-f", "mjpeg", "-vf", "scale=500:-1", "-qscale:v", "5", "-frames:v", "1")
+	if err != nil {
 		return nil, err
 	}
 
-	defer os.Remove(tmp)
-	var buf []byte
-
-	args := []string{"-f", "mjpeg", "-vf", "scale=500:-1", "-qscale:v", "5", "-frames:v", "1"}
-	if err := convertAudioVideo(&Attachment{Path: tmp}, args...); err != nil {
-		return nil, err
-	} else if buf, err = os.ReadFile(tmp); err != nil {
-		return nil, fmt.Errorf("failed reading converted file: %w", err)
-	}
-
-	return buf, nil
+	return tmp.Data, nil
 }
 
 // AttachmentMetadata represents secondary information for a given audio/video buffer. This information
@@ -276,14 +263,18 @@ type attachmentMetadata struct {
 func populateAttachmentMetadata(attach *Attachment) error {
 	if ffprobeCommand == "" {
 		return fmt.Errorf("FFprobe command not found")
-	} else if stat, err := os.Stat(attach.Path); err != nil {
-		return err
-	} else if s := stat.Size(); s > maxAudioVideoSize {
-		return fmt.Errorf("attachment size %d exceeds maximum of %d", s, maxAudioVideoSize)
+	} else if len(attach.Data) > maxAudioVideoSize {
+		return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxAudioVideoSize)
 	}
 
+	tmp, err := createTempFile(attach.Data)
+	if err != nil {
+		return err
+	}
+
+	defer os.Remove(tmp)
 	args := append(ffprobeDefaultArgs, []string{
-		"-i", attach.Path,
+		"-i", tmp,
 		"-show_entries", "stream=codec_name,width,height,sample_rate,duration",
 	}...)
 
@@ -346,13 +337,18 @@ const (
 func getAttachmentWaveform(attach *Attachment) ([]byte, error) {
 	if ffprobeCommand == "" {
 		return nil, fmt.Errorf("FFprobe command not found")
-	} else if stat, err := os.Stat(attach.Path); err != nil {
-		return nil, err
-	} else if s := stat.Size(); s > maxAudioVideoSize {
-		return nil, fmt.Errorf("attachment size %d exceeds maximum of %d", s, maxAudioVideoSize)
+	} else if len(attach.Data) > maxAudioVideoSize {
+		return nil, fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxAudioVideoSize)
 	} else if attach.meta.sampleRate == 0 || attach.meta.duration == 0 {
 		return nil, fmt.Errorf("empty sample-rate or duration")
 	}
+
+	tmp, err := createTempFile(attach.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	defer os.Remove(tmp)
 
 	var samples = make([]byte, 0, maxWaveformSamples)
 	var numSamples = int(float64(attach.meta.sampleRate)*attach.meta.duration.Seconds()) / maxWaveformSamples
@@ -361,7 +357,7 @@ func getAttachmentWaveform(attach *Attachment) ([]byte, error) {
 	// Get waveform with 64 samples, and scale these from a range of 0 to 100.
 	args := append(ffprobeDefaultArgs, []string{
 		"-f", "lavfi",
-		"-i", "amovie=" + attach.Path + ",asetnsamples=" + strconv.Itoa(numSamples) + ",astats=metadata=1:reset=1",
+		"-i", "amovie=" + tmp + ",asetnsamples=" + strconv.Itoa(numSamples) + ",astats=metadata=1:reset=1",
 		"-show_entries", "frame_tags=lavfi.astats.Overall.Peak_level",
 	}...)
 
