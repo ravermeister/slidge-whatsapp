@@ -1,4 +1,4 @@
-from logging import getLogger
+from logging import getLogger, getLevelName
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -47,9 +47,9 @@ class Gateway(BaseGateway):
         Path(config.DB_PATH.parent).mkdir(exist_ok=True)
         (global_config.HOME_DIR / "tmp").mkdir(exist_ok=True)
         self.whatsapp = whatsapp.NewGateway()
-        self.whatsapp.SetLogHandler(handle_log)
         self.whatsapp.DBPath = str(config.DB_PATH)
         self.whatsapp.Name = "Slidge on " + str(global_config.JID)
+        self.whatsapp.LogLevel = getLevelName(getLogger().level)
         self.whatsapp.TempDir = str(global_config.HOME_DIR / "tmp")
         self.whatsapp.Init()
 
@@ -75,20 +75,5 @@ class Gateway(BaseGateway):
             pass
         except RuntimeError as err:
             log.error("Failed to clean up WhatsApp session: %s", err)
-
-
-def handle_log(level, msg: str):
-    """
-    Log given message of specified level in system-wide logger.
-    """
-    if level == whatsapp.LevelError:
-        log.error(msg)
-    elif level == whatsapp.LevelWarning:
-        log.warning(msg)
-    elif level == whatsapp.LevelDebug:
-        log.debug(msg)
-    else:
-        log.info(msg)
-
 
 log = getLogger(__name__)
