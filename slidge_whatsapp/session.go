@@ -130,8 +130,10 @@ func (s *Session) Login() error {
 				return
 			}
 			switch e.Event {
-			case "code":
+			case whatsmeow.QRChannelEventCode:
 				s.propagateEvent(EventQRCode, &EventPayload{QRCode: e.Code})
+			case whatsmeow.QRChannelEventError:
+				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: e.Error.Error()}})
 			}
 		}
 	}()
@@ -659,16 +661,24 @@ func (s *Session) handleEvent(evt interface{}) {
 	switch evt := evt.(type) {
 	case *events.AppStateSyncComplete:
 		if len(s.client.Store.PushName) > 0 && evt.Name == appstate.WAPatchCriticalBlock {
-			s.propagateEvent(EventConnected, &EventPayload{ConnectedJID: s.device.JID().ToNonAD().String()})
+			s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{JID: s.device.JID().ToNonAD().String()}})
 			if err := s.client.SendPresence(types.PresenceAvailable); err != nil {
 				s.gateway.logger.Warnf("Failed to send available presence: %s", err)
 			}
+		}
+	case *events.ConnectFailure:
+		switch evt.Reason {
+		case events.ConnectFailureLoggedOut:
+			// These events are handled separately.
+		default:
+			s.gateway.logger.Errorf("Failed to connect: %s", evt.Message)
+			s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: evt.Message}})
 		}
 	case *events.Connected, *events.PushNameSetting:
 		if len(s.client.Store.PushName) == 0 {
 			return
 		}
-		s.propagateEvent(EventConnected, &EventPayload{ConnectedJID: s.device.JID().ToNonAD().String()})
+		s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{JID: s.device.JID().ToNonAD().String()}})
 		if err := s.client.SendPresence(types.PresenceAvailable); err != nil {
 			s.gateway.logger.Warnf("Failed to send available presence: %s", err)
 		}

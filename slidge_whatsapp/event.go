@@ -24,7 +24,7 @@ const (
 	EventUnknown EventKind = iota
 	EventQRCode
 	EventPair
-	EventConnected
+	EventConnect
 	EventLoggedOut
 	EventContact
 	EventPresence
@@ -41,7 +41,7 @@ const (
 type EventPayload struct {
 	QRCode       string
 	PairDeviceID string
-	ConnectedJID string
+	Connect Connect
 	Contact      Contact
 	Presence     Presence
 	Message      Message
@@ -54,6 +54,13 @@ type EventPayload struct {
 // HandleEventFunc represents a handler for incoming events sent to the Python adapter, accepting an
 // event type and payload destined for a specific user JID.
 type HandleEventFunc func(string, EventKind, *EventPayload)
+
+// Connect represents event data related to a connection to WhatsApp being established, or failing
+// to do so (based on the [Connect.Error] result).
+type Connect struct {
+	JID string // The device JID given for this connection.
+	Error string // The connection error, if any.
+}
 
 // A Avatar represents a small image set for a Contact or Group.
 type Avatar struct {
