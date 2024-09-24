@@ -1,5 +1,4 @@
 import asyncio
-from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
 from os.path import basename
@@ -67,17 +66,17 @@ class Session(BaseSession[str, Recipient]):
         super().__init__(user)
         self.migrate()
         try:
-            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])
+            device = whatsapp.LinkedDevice(
+                ID=self.user.legacy_module_data["device_id"],
+                UserJID=user.jid.bare,
+            )
         except KeyError:
-            device = whatsapp.LinkedDevice()
-        self.whatsapp = self.xmpp.whatsapp.NewSession(device)
-        self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
-        self.whatsapp.SetEventHandler(self._handle_event)
-        self.__reset_connected()
+            device = whatsapp.LinkedDevice(UserJID=user.jid.bare)
+        self.__presence_status: str = ""
         self.user_phone: Optional[str] = None
-        self._presence_status: str = ""
-        self._lock = Lock()
-        self.wa_participants = dict[str, list[whatsapp.GroupParticipant]]()
+        self.whatsapp_participants = dict[str, list[whatsapp.GroupParticipant]]()
+        self.whatsapp = self.xmpp.whatsapp.NewSession(device)
+        self.__reset_connected()
 
     def migrate(self):
         user_shelf_path = (
@@ -99,12 +98,6 @@ class Session(BaseSession[str, Recipient]):
                 self.legacy_module_data_set({"device_id": device_id})
         user_shelf_path.unlink()
 
-    def __reset_connected(self):
-        if hasattr(self, "_connected"):
-            if not self._connected.done():
-                self.xmpp.loop.call_soon_threadsafe(self._connected.cancel)
-        self._connected: asyncio.Future[str] = self.xmpp.loop.create_future()
-
     async def login(self):
         """
         Initiate login process and connect session to WhatsApp. Depending on existing state, login
@@ -113,7 +106,7 @@ class Session(BaseSession[str, Recipient]):
         """
         self.__reset_connected()
         self.whatsapp.Login()
-        return await self._connected
+        return await self.__connected
 
     async def logout(self):
         """
@@ -136,18 +129,24 @@ class Session(BaseSession[str, Recipient]):
         elif event == whatsapp.EventPair:
             self.send_gateway_message(MESSAGE_PAIR_SUCCESS)
             self.legacy_module_data_set({"device_id": data.PairDeviceID})
-        elif event == whatsapp.EventConnected:
-            if self._connected.done():
-                # On re-pair, Session.login() is not called by slidge core, so
-                # the status message is not updated
-                self.send_gateway_status(
-                    self.__get_connected_status_message(), show="chat"
+        elif event == whatsapp.EventConnect:
+            # On re-pair, Session.login() is not called by slidge core, so the status message is
+            # not updated.
+            if self.__connected.done():
+                if data.Connect.Error != "":
+                    self.send_gateway_status(self.__get_connected_status_message(), show="chat")
+                else:
+                    self.send_gateway_status("Connection error", show="dnd")
+                    self.send_gateway_message(data.Connect.Error)
+            elif data.Connect.Error != "":
+                self.xmpp.loop.call_soon_threadsafe(
+                    self.__connected.set_exception, XMPPError("internal-server-error", data.Connect.Error)
                 )
             else:
-                self.contacts.user_legacy_id = data.ConnectedJID
-                self.user_phone = "+" + data.ConnectedJID.split("@")[0]
+                self.contacts.user_legacy_id = data.Connect.JID
+                self.user_phone = "+" + data.Connect.JID.split("@")[0]
                 self.xmpp.loop.call_soon_threadsafe(
-                    self._connected.set_result, self.__get_connected_status_message()
+                    self.__connected.set_result, self.__get_connected_status_message()
                 )
         elif event == whatsapp.EventLoggedOut:
             self.logged = False
@@ -163,13 +162,11 @@ class Session(BaseSession[str, Recipient]):
         elif event == whatsapp.EventChatState:
             await self.handle_chat_state(data.ChatState)
         elif event == whatsapp.EventReceipt:
-            with self._lock:
-                await self.handle_receipt(data.Receipt)
+            await self.handle_receipt(data.Receipt)
         elif event == whatsapp.EventCall:
             await self.handle_call(data.Call)
         elif event == whatsapp.EventMessage:
-            with self._lock:
-                await self.handle_message(data.Message)
+            await self.handle_message(data.Message)
 
     async def handle_chat_state(self, state: whatsapp.ChatState):
         contact = await self.__get_contact_or_participant(state.JID, state.GroupJID)
@@ -351,11 +348,11 @@ class Session(BaseSession[str, Recipient]):
             )
             status = (
                 merged_resource["status"]
-                if self._presence_status != merged_resource["status"]
+                if self.__presence_status != merged_resource["status"]
                 else ""
             )
             if status:
-                self._presence_status = status
+                self.__presence_status = status
             self.whatsapp.SendPresence(presence, status)
 
     async def on_active(self, c: Recipient, thread=None):
@@ -528,6 +525,11 @@ class Session(BaseSession[str, Recipient]):
             stored = self.xmpp.store.sent.get_xmpp_id(self.user_pk, legacy_msg_id)
         return stored is not None
 
+    def __reset_connected(self):
+        if hasattr(self, "_connected") and not self.__connected.done():
+            self.xmpp.loop.call_soon_threadsafe(self.__connected.cancel)
+        self.__connected: asyncio.Future[str] = self.xmpp.loop.create_future()
+
     def __get_connected_status_message(self):
         return f"Connected as {self.user_phone}"
 
@@ -665,22 +667,6 @@ class Attachment(LegacyAttachment):
             ),
             name=wa_attachment.Filename,
         )
-
-
-def make_sync(func, loop):
-    """
-    Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
-    """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        if iscoroutine(result):
-            future = run_coroutine_threadsafe(result, loop)
-            return future.result()
-        return result
-
-    return wrapper
 
 
 def strip_quote_prefix(text: str):

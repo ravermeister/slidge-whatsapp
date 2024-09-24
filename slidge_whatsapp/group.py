@@ -93,12 +93,12 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 )
                 if name := participant.nickname:
                     self.subject_setter = name
-        self.session.wa_participants[self.legacy_id] = info.Participants
+        self.session.whatsapp_participants[self.legacy_id] = info.Participants
 
     async def fill_participants(self) -> AsyncIterator[Participant]:
         await self.session.bookmarks.ready
         try:
-            participants = self.session.wa_participants.pop(self.legacy_id)
+            participants = self.session.whatsapp_participants.pop(self.legacy_id)
         except KeyError:
             self.log.warning("No participants!")
             return
