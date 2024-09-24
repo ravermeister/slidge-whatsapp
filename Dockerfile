@@ -82,5 +82,5 @@ RUN poetry build
 RUN ls -l ./dist
 RUN python --version
 
-FROM scratch as wheel
+FROM scratch AS wheel
 COPY --from=builder-wheel ./build/dist/* /

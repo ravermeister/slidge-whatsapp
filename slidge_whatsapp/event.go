@@ -51,6 +51,10 @@ type EventPayload struct {
 	Call         Call
 }
 
+// HandleEventFunc represents a handler for incoming events sent to the Python adapter, accepting an
+// event type and payload destined for a specific user JID.
+type HandleEventFunc func(string, EventKind, *EventPayload)
+
 // A Avatar represents a small image set for a Contact or Group.
 type Avatar struct {
 	ID  string // The unique ID for this avatar, used for persistent caching.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 
 	// Third-party libraries.
 	_ "github.com/mattn/go-sqlite3"
@@ -14,6 +15,11 @@ import (
 	walog "go.mau.fi/whatsmeow/util/log"
 )
 
+const (
+	// Maximum number of concurrent events to handle before blocking.
+	maxConcurrentEvents = 1024
+)
+
 // A LinkedDevice represents a unique pairing session between the gateway and WhatsApp. It is not
 // unique to the underlying "main" device (or phone number), as multiple linked devices may be paired
 // with any main device.
@@ -21,6 +27,8 @@ type LinkedDevice struct {
 	// ID is an opaque string identifying this LinkedDevice to the Session. Noted that this string
 	// is currently equivalent to a password, and needs to be protected accordingly.
 	ID string
+	// The XMPP user JID corresponding to this device, typically used in matching adapter sessions.
+	UserJID string
 }
 
 // JID returns the WhatsApp JID corresponding to the LinkedDevice ID. Empty or invalid device IDs
@@ -33,14 +41,16 @@ func (d LinkedDevice) JID() types.JID {
 // A Gateway represents a persistent process for establishing individual sessions between linked
 // devices and WhatsApp.
 type Gateway struct {
-	DBPath  string // The filesystem path for the client database.
-	Name    string // The name to display when linking devices on WhatsApp.
+	DBPath   string // The filesystem path for the client database.
+	Name     string // The name to display when linking devices on WhatsApp.
 	LogLevel string // The verbosity level to use when logging messages.
-	TempDir string // The directory to create temporary files under.
+	TempDir  string // The directory to create temporary files under.
 
 	// Internal variables.
-	container *sqlstore.Container
-	logger    walog.Logger
+	container    *sqlstore.Container
+	eventHandler HandleEventFunc
+	eventChan    chan (eventData)
+	logger       walog.Logger
 }
 
 // NewGateway returns a new, un-initialized Gateway. This function should always be followed by calls
@@ -52,6 +62,10 @@ func NewGateway() *Gateway {
 // Init performs initialization procedures for the Gateway, and is expected to be run before any
 // calls to [Gateway.Session].
 func (w *Gateway) Init() error {
+	if w.eventHandler == nil {
+		return fmt.Errorf("No Python event handler set, unable to continue...")
+	}
+
 	w.logger = logger{
 		module: "Slidge",
 		logger: slog.New(
@@ -72,8 +86,34 @@ func (w *Gateway) Init() error {
 		tempDir = w.TempDir
 	}
 
+	w.eventChan = make(chan eventData, maxConcurrentEvents)
 	w.container = container
+
+	go func() {
+		// Don't allow other Goroutines from using this thread, as this might lead to concurrent use of
+		// the GIL, which can lead to crashes.
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		for e := range w.eventChan {
+			w.eventHandler(e.jid, e.kind, e.payload)
+		}
+	}()
+
 	return nil
+}
+
+// EventData represents collected event information, and is used in internal event handling.
+type eventData struct {
+	jid     string
+	kind    EventKind
+	payload *EventPayload
+}
+
+// SetEventHandler assigns the given handler function for propagating internal events into the Python
+// gateway. Note that the event handler function is not entirely safe to use directly, and all calls
+// should instead be made via the [Gateway.handleEvent] function.
+func (w *Gateway) SetEventHandler(h HandleEventFunc) {
+	w.eventHandler = h
 }
 
 // NewSession returns a new [Session] for the LinkedDevice given. If the linked device does not have

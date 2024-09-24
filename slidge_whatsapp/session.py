@@ -1,5 +1,4 @@
 import asyncio
-from asyncio import iscoroutine, run_coroutine_threadsafe
 from datetime import datetime, timezone
 from functools import wraps
 from os.path import basename
@@ -67,12 +66,13 @@ class Session(BaseSession[str, Recipient]):
         super().__init__(user)
         self.migrate()
         try:
-            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])
+            device = whatsapp.LinkedDevice(
+                ID=self.user.legacy_module_data["device_id"],
+                UserJID=user.jid.bare,
+            )
         except KeyError:
-            device = whatsapp.LinkedDevice()
+            device = whatsapp.LinkedDevice(UserJID=user.jid.bare)
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
-        self._handle_event = make_sync(self.handle_event, self.xmpp.loop)
-        self.whatsapp.SetEventHandler(self._handle_event)
         self.__reset_connected()
         self.user_phone: Optional[str] = None
         self._presence_status: str = ""
@@ -665,22 +665,6 @@ class Attachment(LegacyAttachment):
             ),
             name=wa_attachment.Filename,
         )
-
-
-def make_sync(func, loop):
-    """
-    Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
-    """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        if iscoroutine(result):
-            future = run_coroutine_threadsafe(result, loop)
-            return future.result()
-        return result
-
-    return wrapper
 
 
 def strip_quote_prefix(text: str):
