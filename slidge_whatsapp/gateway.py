@@ -1,8 +1,11 @@
-from logging import getLogger
+from asyncio import iscoroutine, run_coroutine_threadsafe
+from functools import wraps
+from logging import getLogger, getLevelName
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from slidge import BaseGateway, FormField, GatewayUser, global_config
+from slixmpp import JID
 
 from . import config
 from .generated import whatsapp
@@ -43,20 +46,25 @@ class Gateway(BaseGateway):
 
     def __init__(self):
         super().__init__()
+        self.whatsapp = whatsapp.NewGateway()
+        self.whatsapp.Name = "Slidge on " + str(global_config.JID)
+        self.whatsapp.LogLevel = getLevelName(getLogger().level)
+
         assert config.DB_PATH is not None
         Path(config.DB_PATH.parent).mkdir(exist_ok=True)
-        (global_config.HOME_DIR / "tmp").mkdir(exist_ok=True)
-        self.whatsapp = whatsapp.NewGateway()
-        self.whatsapp.SetLogHandler(handle_log)
         self.whatsapp.DBPath = str(config.DB_PATH)
-        self.whatsapp.Name = "Slidge on " + str(global_config.JID)
+
+        (global_config.HOME_DIR / "tmp").mkdir(exist_ok=True)
         self.whatsapp.TempDir = str(global_config.HOME_DIR / "tmp")
+
+        self._handle_event = make_sync(self.handle_event, self.loop)
+        self.whatsapp.SetEventHandler(self._handle_event)
         self.whatsapp.Init()
 
     async def validate(self, user_jid, registration_form):
         """
         Validate registration form. A no-op for WhatsApp, as actual registration takes place
-        after in-band registration commands complete.
+        after in-band registration commands complete; see :meth:`.Session.login` for more.
         """
         pass
 
@@ -76,19 +84,27 @@ class Gateway(BaseGateway):
         except RuntimeError as err:
             log.error("Failed to clean up WhatsApp session: %s", err)
 
+    async def handle_event(self, jid: str, event: whatsapp.EventKind, ptr):
+        session: "Session" = self.get_session_from_jid(JID(jid))  # type:ignore
+        if session is None:
+            return
+        await session.handle_event(event, ptr)
 
-def handle_log(level, msg: str):
+
+def make_sync(func, loop):
     """
-    Log given message of specified level in system-wide logger.
+    Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
     """
-    if level == whatsapp.LevelError:
-        log.error(msg)
-    elif level == whatsapp.LevelWarning:
-        log.warning(msg)
-    elif level == whatsapp.LevelDebug:
-        log.debug(msg)
-    else:
-        log.info(msg)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        if iscoroutine(result):
+            future = run_coroutine_threadsafe(result, loop)
+            return future.result()
+        return result
+
+    return wrapper
 
 
 log = getLogger(__name__)

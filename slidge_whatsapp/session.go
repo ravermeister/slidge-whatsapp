@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"runtime"
 	"time"
 
 	// Third-party libraries.
@@ -47,18 +46,11 @@ const (
 	maxHistorySyncMessages = 50
 )
 
-// HandleEventFunc represents a handler for incoming events sent to the Python Session, accepting an
-// event type and payload. Note that this is distinct to the [Session.handleEvent] function, which
-// may emit events into the Python Session event handler but which otherwise does not process across
-// Python/Go boundaries.
-type HandleEventFunc func(EventKind, *EventPayload)
-
 // A Session represents a connection (active or not) between a linked device and WhatsApp. Active
 // sessions need to be established by logging in, after which incoming events will be forwarded to
 // the adapter event handler, and outgoing events will be forwarded to WhatsApp.
 type Session struct {
 	device       LinkedDevice      // The linked device this session corresponds to.
-	eventHandler HandleEventFunc   // The event handler for the overarching Session.
 	client       *whatsmeow.Client // The concrete client connection to WhatsApp for this session.
 	gateway      *Gateway          // The Gateway this Session is attached to.
 	presenceChan chan PresenceKind // A channel used for periodically refreshing contact presences.
@@ -138,8 +130,10 @@ func (s *Session) Login() error {
 				return
 			}
 			switch e.Event {
-			case "code":
+			case whatsmeow.QRChannelEventCode:
 				s.propagateEvent(EventQRCode, &EventPayload{QRCode: e.Code})
+			case whatsmeow.QRChannelEventError:
+				s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: e.Error.Error()}})
 			}
 		}
 	}()
@@ -643,20 +637,10 @@ func (s *Session) RequestMessageHistory(resourceID string, oldestMessage Message
 	return nil
 }
 
-// SetEventHandler assigns the given handler function for propagating internal events into the Python
-// gateway. Note that the event handler function is not entirely safe to use directly, and all calls
-// should instead be made via the [propagateEvent] function.
-func (s *Session) SetEventHandler(h HandleEventFunc) {
-	s.eventHandler = h
-}
-
 // PropagateEvent handles the given event kind and payload with the adapter event handler defined in
-// SetEventHandler. If no event handler is set, this function will return early with no error.
+// [Gateway.SetEventHandler].
 func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
-	if s.eventHandler == nil {
-		s.gateway.logger.Errorf("Event handler not set when propagating event %d with payload %v", kind, payload)
-		return
-	} else if kind == EventUnknown {
+	if kind == EventUnknown {
 		return
 	}
 
@@ -665,12 +649,7 @@ func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
 		payload = &EventPayload{}
 	}
 
-	// Don't allow other Goroutines from using this thread, as this might lead to concurrent use of
-	// the GIL, which can lead to crashes.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	s.eventHandler(kind, payload)
+	s.gateway.eventChan <- eventData{s.device.UserJID, kind, payload}
 }
 
 // HandleEvent processes the given incoming WhatsApp event, checking its concrete type and
@@ -682,16 +661,24 @@ func (s *Session) handleEvent(evt interface{}) {
 	switch evt := evt.(type) {
 	case *events.AppStateSyncComplete:
 		if len(s.client.Store.PushName) > 0 && evt.Name == appstate.WAPatchCriticalBlock {
-			s.propagateEvent(EventConnected, &EventPayload{ConnectedJID: s.device.JID().ToNonAD().String()})
+			s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{JID: s.device.JID().ToNonAD().String()}})
 			if err := s.client.SendPresence(types.PresenceAvailable); err != nil {
 				s.gateway.logger.Warnf("Failed to send available presence: %s", err)
 			}
+		}
+	case *events.ConnectFailure:
+		switch evt.Reason {
+		case events.ConnectFailureLoggedOut:
+			// These events are handled separately.
+		default:
+			s.gateway.logger.Errorf("Failed to connect: %s", evt.Message)
+			s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{Error: evt.Message}})
 		}
 	case *events.Connected, *events.PushNameSetting:
 		if len(s.client.Store.PushName) == 0 {
 			return
 		}
-		s.propagateEvent(EventConnected, &EventPayload{ConnectedJID: s.device.JID().ToNonAD().String()})
+		s.propagateEvent(EventConnect, &EventPayload{Connect: Connect{JID: s.device.JID().ToNonAD().String()}})
 		if err := s.client.SendPresence(types.PresenceAvailable); err != nil {
 			s.gateway.logger.Warnf("Failed to send available presence: %s", err)
 		}
