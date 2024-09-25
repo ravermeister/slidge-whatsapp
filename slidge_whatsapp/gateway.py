@@ -1,11 +1,8 @@
-from asyncio import iscoroutine, run_coroutine_threadsafe
-from functools import wraps
 from logging import getLogger, getLevelName
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from slidge import BaseGateway, FormField, GatewayUser, global_config
-from slixmpp import JID
 
 from . import config
 from .generated import whatsapp
@@ -56,9 +53,6 @@ class Gateway(BaseGateway):
 
         (global_config.HOME_DIR / "tmp").mkdir(exist_ok=True)
         self.whatsapp.TempDir = str(global_config.HOME_DIR / "tmp")
-
-        self._handle_event = make_sync(self.handle_event, self.loop)
-        self.whatsapp.SetEventHandler(self._handle_event)
         self.whatsapp.Init()
 
     async def validate(self, user_jid, registration_form):
@@ -83,28 +77,6 @@ class Gateway(BaseGateway):
             pass
         except RuntimeError as err:
             log.error("Failed to clean up WhatsApp session: %s", err)
-
-    async def handle_event(self, jid: str, event: whatsapp.EventKind, ptr):
-        session: "Session" = self.get_session_from_jid(JID(jid))  # type:ignore
-        if session is None:
-            return
-        await session.handle_event(event, ptr)
-
-
-def make_sync(func, loop):
-    """
-    Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
-    """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        if iscoroutine(result):
-            future = run_coroutine_threadsafe(result, loop)
-            return future.result()
-        return result
-
-    return wrapper
 
 
 log = getLogger(__name__)
