@@ -52,8 +52,8 @@ type EventPayload struct {
 }
 
 // HandleEventFunc represents a handler for incoming events sent to the Python adapter, accepting an
-// event type and payload destined for a specific user JID.
-type HandleEventFunc func(string, EventKind, *EventPayload)
+// event type and payload.
+type HandleEventFunc func(EventKind, *EventPayload)
 
 // Connect represents event data related to a connection to WhatsApp being established, or failing
 // to do so (based on the [Connect.Error] result).
