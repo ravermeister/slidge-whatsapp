@@ -4,7 +4,6 @@ from functools import wraps
 from os.path import basename
 from pathlib import Path
 from re import search
-from threading import Lock
 from typing import Any, Optional, Union, cast
 
 from aiohttp import ClientSession
@@ -66,16 +65,15 @@ class Session(BaseSession[str, Recipient]):
         super().__init__(user)
         self.migrate()
         try:
-            device = whatsapp.LinkedDevice(
-                ID=self.user.legacy_module_data["device_id"],
-                UserJID=user.jid.bare,
-            )
+            device = whatsapp.LinkedDevice(ID=self.user.legacy_module_data["device_id"])
         except KeyError:
-            device = whatsapp.LinkedDevice(UserJID=user.jid.bare)
+            device = whatsapp.LinkedDevice()
         self.__presence_status: str = ""
         self.user_phone: Optional[str] = None
         self.whatsapp_participants = dict[str, list[whatsapp.GroupParticipant]]()
         self.whatsapp = self.xmpp.whatsapp.NewSession(device)
+        self.__handle_event = make_sync(self.handle_event, self.xmpp.loop)
+        self.whatsapp.SetEventHandler(self.__handle_event)
         self.__reset_connected()
 
     def migrate(self):
@@ -134,13 +132,16 @@ class Session(BaseSession[str, Recipient]):
             # not updated.
             if self.__connected.done():
                 if data.Connect.Error != "":
-                    self.send_gateway_status(self.__get_connected_status_message(), show="chat")
+                    self.send_gateway_status(
+                        self.__get_connected_status_message(), show="chat"
+                    )
                 else:
                     self.send_gateway_status("Connection error", show="dnd")
                     self.send_gateway_message(data.Connect.Error)
             elif data.Connect.Error != "":
                 self.xmpp.loop.call_soon_threadsafe(
-                    self.__connected.set_exception, XMPPError("internal-server-error", data.Connect.Error)
+                    self.__connected.set_exception,
+                    XMPPError("internal-server-error", data.Connect.Error),
                 )
             else:
                 self.contacts.user_legacy_id = data.Connect.JID
@@ -700,3 +701,19 @@ async def get_url_bytes(client: ClientSession, url: str) -> Optional[bytes]:
         if resp.status == 200:
             return await resp.read()
     return None
+
+
+def make_sync(func, loop):
+    """
+    Wrap async function in synchronous operation, running against the given loop in thread-safe mode.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        if asyncio.iscoroutine(result):
+            future = asyncio.run_coroutine_threadsafe(result, loop)
+            return future.result()
+        return result
+
+    return wrapper

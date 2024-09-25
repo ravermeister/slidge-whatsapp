@@ -53,6 +53,7 @@ type Session struct {
 	device       LinkedDevice      // The linked device this session corresponds to.
 	client       *whatsmeow.Client // The concrete client connection to WhatsApp for this session.
 	gateway      *Gateway          // The Gateway this Session is attached to.
+	eventHandler HandleEventFunc   // The handler function to use for propagating events to the adapter.
 	presenceChan chan PresenceKind // A channel used for periodically refreshing contact presences.
 }
 
@@ -637,19 +638,29 @@ func (s *Session) RequestMessageHistory(resourceID string, oldestMessage Message
 	return nil
 }
 
+// SetEventHandler assigns the given handler function for propagating internal events into the Python
+// gateway. Note that the event handler function is not entirely safe to use directly, and all calls
+// should instead be sent to the [Gateway] via its internal call channel.
+func (s *Session) SetEventHandler(h HandleEventFunc) {
+	s.eventHandler = h
+}
+
 // PropagateEvent handles the given event kind and payload with the adapter event handler defined in
-// [Gateway.SetEventHandler].
+// [Session.SetEventHandler].
 func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
-	if kind == EventUnknown {
+	if s.eventHandler == nil {
+		s.gateway.logger.Errorf("Event handler not set when propagating event %d with payload %v", kind, payload)
 		return
-	}
+	} else if kind == EventUnknown {
+ 		return
+ 	}
 
 	// Send empty payload instead of a nil pointer, as Python has trouble handling the latter.
 	if payload == nil {
 		payload = &EventPayload{}
 	}
 
-	s.gateway.eventChan <- eventData{s.device.UserJID, kind, payload}
+	s.gateway.callChan <- func() { s.eventHandler(kind, payload) }
 }
 
 // HandleEvent processes the given incoming WhatsApp event, checking its concrete type and
@@ -732,9 +743,9 @@ func (s *Session) handleEvent(evt interface{}) {
 			s.gateway.logger.Errorf("Pairing succeeded, but device ID is missing")
 			return
 		}
-		deviceID := s.client.Store.ID.String()
-		s.propagateEvent(EventPair, &EventPayload{PairDeviceID: deviceID})
-		if err := s.gateway.CleanupSession(LinkedDevice{ID: deviceID}); err != nil {
+		s.device.ID = s.client.Store.ID.String()
+		s.propagateEvent(EventPair, &EventPayload{PairDeviceID: s.device.ID})
+		if err := s.gateway.CleanupSession(LinkedDevice{ID: s.device.ID}); err != nil {
 			s.gateway.logger.Warnf("Failed to clean up devices after pair: %s", err)
 		}
 	case *events.KeepAliveTimeout:
