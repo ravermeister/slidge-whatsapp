@@ -488,6 +488,20 @@ func (s *Session) CreateGroup(name string, participants []string) (Group, error)
 	return newGroup(s.client, info), nil
 }
 
+// LeaveGroup attempts to remove our own user from the given WhatsApp group, for the JID given.
+func (s *Session) LeaveGroup(resourceID string) error {
+	if s.client == nil || s.client.Store.ID == nil {
+		return fmt.Errorf("Cannot leave group for unauthenticated session")
+	}
+
+	jid, err := types.ParseJID(resourceID)
+	if err != nil {
+		return fmt.Errorf("Could not parse JID for leaving group: %s", err)
+	}
+
+	return s.client.LeaveGroup(jid)
+}
+
 // GetAvatar fetches a profile picture for the Contact or Group JID given. If a non-empty `avatarID`
 // is also given, GetAvatar will return an empty [Avatar] instance with no error if the remote state
 // for the given ID has not changed.
@@ -542,7 +556,7 @@ func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 	}
 }
 
-// SetGroupName updates the name of a WhatsApp group
+// SetGroupName updates the name of a WhatsApp group for the Group JID given.
 func (s *Session) SetGroupName(resourceID, name string) error {
 	if s.client == nil || s.client.Store.ID == nil {
 		return fmt.Errorf("Cannot set group name for unauthenticated session")
@@ -652,8 +666,8 @@ func (s *Session) propagateEvent(kind EventKind, payload *EventPayload) {
 		s.gateway.logger.Errorf("Event handler not set when propagating event %d with payload %v", kind, payload)
 		return
 	} else if kind == EventUnknown {
- 		return
- 	}
+		return
+	}
 
 	// Send empty payload instead of a nil pointer, as Python has trouble handling the latter.
 	if payload == nil {

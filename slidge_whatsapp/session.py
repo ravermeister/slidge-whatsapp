@@ -495,6 +495,12 @@ class Session(BaseSession[str, Recipient]):
         muc = await self.bookmarks.by_legacy_id(group.JID)
         return muc.legacy_id
 
+    async def on_leave_group(self, legacy_muc_id: str):  # type:ignore
+        """
+        Removes own user from given WhatsApp group.
+        """
+        self.whatsapp.LeaveGroup(legacy_muc_id)
+
     async def on_search(self, form_values: dict[str, str]):
         """
         Searches for, and automatically adds, WhatsApp contact based on phone number. Phone numbers
