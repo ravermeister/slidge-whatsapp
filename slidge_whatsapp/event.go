@@ -338,7 +338,8 @@ func getMessageWithContext(message Message, info *waE2E.ContextInfo) Message {
 // via WhatsApp. Any failures in retrieving any attachment will return an error immediately.
 func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]Attachment, *waE2E.ContextInfo, error) {
 	var result []Attachment
-	var context *waE2E.ContextInfo
+	var info *waE2E.ContextInfo
+	var convertSpec *media.Spec
 	var kinds = []whatsmeow.DownloadableMessage{
 		message.GetImageMessage(),
 		message.GetAudioMessage(),
@@ -354,7 +355,11 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 		case *waE2E.ImageMessage:
 			a.MIME, a.Caption = msg.GetMimetype(), msg.GetCaption()
 		case *waE2E.AudioMessage:
+			// Convert Opus-encoded voice messages to AAC-encoded audio, which has better support.
 			a.MIME = msg.GetMimetype()
+			if msg.GetPTT() {
+				convertSpec = &media.Spec{MIME: media.TypeM4A}
+			}
 		case *waE2E.VideoMessage:
 			a.MIME, a.Caption = msg.GetMimetype(), msg.GetCaption()
 		case *waE2E.DocumentMessage:
@@ -368,11 +373,6 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 			continue
 		}
 
-		// Set filename from SHA256 checksum and MIME type, if none is already set.
-		if a.Filename == "" {
-			a.Filename = fmt.Sprintf("%x%s", msg.GetFileSHA256(), extensionByType(a.MIME))
-		}
-
 		// Attempt to download and decrypt raw attachment data, if any.
 		data, err := client.Download(msg)
 		if err != nil {
@@ -380,6 +380,20 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 		}
 
 		a.Data = data
+
+		// Convert incoming data if a specification has been given, ignoring any errors that occur.
+		if convertSpec != nil {
+			data, err = media.Convert(context.Background(), a.Data, convertSpec)
+			if err == nil {
+				a.Data, a.MIME = data, string(media.TypeM4A)
+			}
+		}
+
+		// Set filename from SHA256 checksum and MIME type, if none is already set.
+		if a.Filename == "" {
+			a.Filename = fmt.Sprintf("%x%s", msg.GetFileSHA256(), extensionByType(a.MIME))
+		}
+
 		result = append(result, a)
 	}
 
@@ -390,7 +404,11 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 			Filename: c.GetDisplayName() + ".vcf",
 			Data:     []byte(c.GetVcard()),
 		})
-		context = c.GetContextInfo()
+		info = c.GetContextInfo()
+	}
+
+	return result, info, nil
+}
 
 const (
 	// The MIME type used by voice messages on WhatsApp.
