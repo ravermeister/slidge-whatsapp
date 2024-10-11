@@ -41,6 +41,12 @@ GEO_URI_SEARCH_REGEX = (
     r"geo:(?P<lat>-?\d+(\.\d*)?),(?P<lon>-?\d+(\.\d*)?)(;u=(?P<acc>-?\d+(\.\d*)?))?"
 )
 
+VIDEO_PREVIEW_DOMAINS = (
+    "https://youtube.com/watch",
+    "https://m.youtube.com/watch",
+    "https://youtu.be",
+)
+
 
 Recipient = Union[Contact, MUC]
 
@@ -612,7 +618,13 @@ class Session(BaseSession[str, Recipient]):
                     if preview.image
                     else None
                 )
+                kind = (
+                    whatsapp.PreviewVideo
+                    if url.startswith(VIDEO_PREVIEW_DOMAINS)
+                    else whatsapp.PreviewPlain
+                )
                 return whatsapp.Preview(
+                    Kind=kind,
                     Title=preview.title,
                     Description=preview.description or "",
                     URL=url,
