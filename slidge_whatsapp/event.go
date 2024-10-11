@@ -161,6 +161,7 @@ type Message struct {
 	Body        string       // The plain-text message body. For attachment messages, this can be a caption.
 	Timestamp   int64        // The Unix timestamp denoting when this message was created.
 	IsCarbon    bool         // Whether or not this message concerns the gateway user themselves.
+	IsForwarded bool         // Whether or not the message was forwarded from another source.
 	ReplyID     string       // The unique message ID this message is in reply to, if any.
 	ReplyBody   string       // The full body of the message this message is in reply to, if any.
 	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
@@ -322,6 +323,7 @@ func getMessageWithContext(message Message, info *waE2E.ContextInfo) Message {
 
 	message.ReplyID = info.GetStanzaID()
 	message.OriginJID = info.GetParticipant()
+	message.IsForwarded = info.GetIsForwarded()
 
 	if q := info.GetQuotedMessage(); q != nil {
 		if qe := q.GetExtendedTextMessage(); qe != nil {
