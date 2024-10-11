@@ -41,6 +41,12 @@ GEO_URI_SEARCH_REGEX = (
     r"geo:(?P<lat>-?\d+(\.\d*)?),(?P<lon>-?\d+(\.\d*)?)(;u=(?P<acc>-?\d+(\.\d*)?))?"
 )
 
+VIDEO_PREVIEW_DOMAINS = (
+    "https://youtube.com/watch",
+    "https://m.youtube.com/watch",
+    "https://youtu.be",
+)
+
 
 Recipient = Union[Contact, MUC]
 
@@ -543,16 +549,16 @@ class Session(BaseSession[str, Recipient]):
     async def __get_body(
         self, message: whatsapp.Message, muc: Optional["MUC"] = None
     ) -> str:
+        body = message.Body
         if muc:
-            body = await muc.replace_mentions(message.Body)
-        elif message.Location.Latitude > 0 or message.Location.Longitude > 0:
-            body = (
-                "geo:%f,%f" % (message.Location.Latitude, message.Location.Longitude),
-            )
-            if message.Location.Accuracy > 0:
-                body = body + ";u=%d" % message.Location.Accuracy
-        else:
-            body = message.Body
+            body = await muc.replace_mentions(body)
+        if message.Location.Latitude > 0 or message.Location.Longitude > 0:
+            loc = message.Location
+            body = "geo:%f,%f" % loc.Latitude, loc.Longitude
+            if loc.Accuracy > 0:
+                body = body + ";u=%d" % loc.Accuracy
+        if message.IsForwarded:
+            body = "↱ Forwarded message:\n> " + body
         return body
 
     async def __get_reply_to(
@@ -612,7 +618,13 @@ class Session(BaseSession[str, Recipient]):
                     if preview.image
                     else None
                 )
+                kind = (
+                    whatsapp.PreviewVideo
+                    if url.startswith(VIDEO_PREVIEW_DOMAINS)
+                    else whatsapp.PreviewPlain
+                )
                 return whatsapp.Preview(
+                    Kind=kind,
                     Title=preview.title,
                     Description=preview.description or "",
                     URL=url,

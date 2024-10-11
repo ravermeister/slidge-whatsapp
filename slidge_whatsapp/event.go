@@ -108,7 +108,8 @@ type PresenceKind int
 
 // The presences handled by the overarching session event handler.
 const (
-	PresenceAvailable PresenceKind = 1 + iota
+	PresenceUnknown PresenceKind = iota
+	PresenceAvailable
 	PresenceUnavailable
 )
 
@@ -142,7 +143,7 @@ type MessageKind int
 
 // The message types handled by the overarching session event handler.
 const (
-	MessagePlain MessageKind = 1 + iota
+	MessagePlain MessageKind = iota
 	MessageEdit
 	MessageRevoke
 	MessageReaction
@@ -161,6 +162,7 @@ type Message struct {
 	Body        string       // The plain-text message body. For attachment messages, this can be a caption.
 	Timestamp   int64        // The Unix timestamp denoting when this message was created.
 	IsCarbon    bool         // Whether or not this message concerns the gateway user themselves.
+	IsForwarded bool         // Whether or not the message was forwarded from another source.
 	ReplyID     string       // The unique message ID this message is in reply to, if any.
 	ReplyBody   string       // The full body of the message this message is in reply to, if any.
 	Attachments []Attachment // The list of file (image, video, etc.) attachments contained in this message.
@@ -183,13 +185,22 @@ type Attachment struct {
 	spec *media.Spec // Metadata specific to audio/video files, used in processing.
 }
 
+// PreviewKind represents different ways of previewingadditional data inline with messages.
+type PreviewKind int
+
+const (
+	PreviewPlain PreviewKind = iota
+	PreviewVideo
+)
+
 // A Preview represents a short description for a URL provided in a message body, as usually derived
 // from the content of the page pointed at.
 type Preview struct {
-	URL         string // The original (or canonical) URL this preview was generated for.
-	Title       string // The short title for the URL preview.
-	Description string // The (optional) long-form description for the URL preview.
-	Thumbnail   []byte // The (optional) thumbnail image data.
+	Kind        PreviewKind // The kind of preview to show, defaults to plain URL preview.
+	URL         string      // The original (or canonical) URL this preview was generated for.
+	Title       string      // The short title for the URL preview.
+	Description string      // The (optional) long-form description for the URL preview.
+	Thumbnail   []byte      // The (optional) thumbnail image data.
 }
 
 // A Location represents additional metadata given to location messages.
@@ -322,6 +333,7 @@ func getMessageWithContext(message Message, info *waE2E.ContextInfo) Message {
 
 	message.ReplyID = info.GetStanzaID()
 	message.OriginJID = info.GetParticipant()
+	message.IsForwarded = info.GetIsForwarded()
 
 	if q := info.GetQuotedMessage(); q != nil {
 		if qe := q.GetExtendedTextMessage(); qe != nil {
@@ -425,7 +437,8 @@ const (
 	maxWaveformSamples = 64
 
 	// Default thumbnail width in pixels.
-	thumbWidth = 100
+	defaultThumbnailWidth = 100
+	previewThumbnailWidth = 250
 )
 
 var (
@@ -619,7 +632,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				FileLength:    ptrTo(uint64(len(attach.Data))),
 			},
 		}
-		t, err := media.GetThumbnail(ctx, attach.Data, thumbWidth, 0)
+		t, err := media.Convert(ctx, attach.Data, &media.Spec{MIME: media.TypeJPEG, ImageWidth: defaultThumbnailWidth})
 		if err != nil {
 			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
 		} else {
@@ -676,7 +689,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				Height:        ptrTo(uint32(spec.VideoHeight)),
 			},
 		}
-		t, err := media.GetThumbnail(ctx, attach.Data, thumbWidth, 0)
+		t, err := media.GetThumbnail(ctx, attach.Data, defaultThumbnailWidth, 0)
 		if err != nil {
 			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
 		} else {
@@ -853,7 +866,8 @@ type ChatStateKind int
 
 // The chat states handled by the overarching session event handler.
 const (
-	ChatStateComposing ChatStateKind = 1 + iota
+	ChatStateUnknown ChatStateKind = iota
+	ChatStateComposing
 	ChatStatePaused
 )
 
@@ -887,7 +901,8 @@ type ReceiptKind int
 
 // The delivery receipts handled by the overarching session event handler.
 const (
-	ReceiptDelivered ReceiptKind = 1 + iota
+	ReceiptUnknown ReceiptKind = iota
+	ReceiptDelivered
 	ReceiptRead
 )
 

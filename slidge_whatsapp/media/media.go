@@ -15,6 +15,7 @@ import (
 	"time"
 
 	// Third-party packages.
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
 
@@ -82,6 +83,8 @@ type Spec struct {
 	VideoHeight      int        // The height of the video stream, in pixels.
 	VideoFilter      string     // A complex filter to apply to the video stream.
 
+	ImageWidth     int // The width of the image, in pixels.
+	ImageHeight    int // The height of the image, in pixels.
 	ImageQuality   int // Image quality for lossy image formats, typically a value from 1 to 100.
 	ImageFrameRate int // The frame-rate for animated images.
 
@@ -224,6 +227,21 @@ func convertImage(_ context.Context, data []byte, spec *Spec) ([]byte, error) {
 		return nil, err
 	}
 
+	// Resize image if dimensions given in spec.
+	if spec.ImageWidth > 0 || spec.ImageHeight > 0 {
+		// Retain aspect ratio if either width or height aren't provided.
+		width, height := spec.ImageWidth, spec.ImageHeight
+		if width == 0 {
+			width = int(float64(img.Bounds().Max.X) / (float64(img.Bounds().Max.Y) / float64(height)))
+		} else if height == 0 {
+			height = int(float64(img.Bounds().Max.Y) / (float64(img.Bounds().Max.X) / float64(width)))
+		}
+		tmp := image.NewRGBA(image.Rect(0, 0, width, height))
+		draw.ApproxBiLinear.Scale(tmp, tmp.Rect, img, img.Bounds(), draw.Over, nil)
+		img = tmp
+	}
+
+	// Re-encode image based on target MIME type.
 	var out bytes.Buffer
 	switch spec.MIME.BaseMediaType() {
 	case TypeJPEG:

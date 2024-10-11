@@ -2,9 +2,11 @@ package whatsapp
 
 import (
 	// Standard library.
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image/jpeg"
 	"math/rand"
 	"time"
 
@@ -295,13 +297,30 @@ func (s *Session) getMessagePayload(message Message) *waE2E.Message {
 			payload = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: &message.Body}}
 		}
 
+		switch message.Preview.Kind {
+		case PreviewPlain:
+			payload.ExtendedTextMessage.PreviewType = ptrTo(waE2E.ExtendedTextMessage_NONE)
+		case PreviewVideo:
+			payload.ExtendedTextMessage.PreviewType = ptrTo(waE2E.ExtendedTextMessage_VIDEO)
+		}
+
 		payload.ExtendedTextMessage.MatchedText = &message.Preview.URL
+		payload.ExtendedTextMessage.CanonicalURL = &message.Preview.URL
 		payload.ExtendedTextMessage.Title = &message.Preview.Title
+		payload.ExtendedTextMessage.Description = &message.Preview.Description
 
 		if len(message.Preview.Thumbnail) > 0 && len(message.Preview.Thumbnail) < maxPreviewThumbnailSize {
-			data, err := media.Convert(ctx, message.Preview.Thumbnail, &media.Spec{MIME: media.TypeJPEG})
+			spec := &media.Spec{
+				MIME:       media.TypeJPEG,
+				ImageWidth: previewThumbnailWidth,
+			}
+			data, err := media.Convert(ctx, message.Preview.Thumbnail, spec)
 			if err == nil {
 				payload.ExtendedTextMessage.JPEGThumbnail = data
+				if info, err := jpeg.DecodeConfig(bytes.NewReader(data)); err == nil {
+					payload.ExtendedTextMessage.ThumbnailWidth = ptrTo(uint32(info.Width))
+					payload.ExtendedTextMessage.ThumbnailHeight = ptrTo(uint32(info.Height))
+				}
 			}
 		}
 	}
