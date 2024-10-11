@@ -30,13 +30,14 @@ class MUC(LegacyMUC[str, str, Participant, str]):
     async def update_info(self):
         try:
             avatar = self.session.whatsapp.GetAvatar(self.legacy_id, self.avatar or "")
-        except RuntimeError:
-            # No avatar.
-            # TODO: Figure out if errors are actually returned when no avatar is set.
-            await self.set_avatar(None)
-        else:
-            if avatar.URL:
+            if avatar.URL and self.avatar != avatar.ID:
                 await self.set_avatar(avatar.URL, avatar.ID)
+            elif avatar.URL == "":
+                await self.set_avatar(None)
+        except RuntimeError:
+            self.session.log.error(
+                "Failed getting avatar for group %s: %s", self.legacy_id, err
+            )
 
     async def backfill(
         self,
