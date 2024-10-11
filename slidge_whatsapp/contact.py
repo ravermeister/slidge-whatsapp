@@ -55,8 +55,10 @@ class Roster(LegacyRoster[str, Contact]):
         contact.is_friend = True
         try:
             avatar = self.session.whatsapp.GetAvatar(data.JID, contact.avatar or "")
-            if avatar.URL:
+            if avatar.URL and contact.avatar != avatar.ID:
                 await contact.set_avatar(avatar.URL, avatar.ID)
+            elif avatar.URL == "":
+                await contact.set_avatar(None)
         except RuntimeError as err:
             self.session.log.error(
                 "Failed getting avatar for contact %s: %s", data.JID, err
