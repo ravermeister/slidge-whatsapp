@@ -8,6 +8,9 @@ import (
 	"math/rand"
 	"time"
 
+	// Internal packages.
+	"git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp/media"
+
 	// Third-party libraries.
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
@@ -265,6 +268,7 @@ const (
 // fields set in the Message type, and may be nested recursively (e.g. when replying to a reply).
 func (s *Session) getMessagePayload(message Message) *waE2E.Message {
 	var payload *waE2E.Message
+	var ctx = context.Background()
 
 	// Compose extended message when made as a reply to a different message.
 	if message.ReplyID != "" {
@@ -295,9 +299,9 @@ func (s *Session) getMessagePayload(message Message) *waE2E.Message {
 		payload.ExtendedTextMessage.Title = &message.Preview.Title
 
 		if len(message.Preview.Thumbnail) > 0 && len(message.Preview.Thumbnail) < maxPreviewThumbnailSize {
-			tmp := &Attachment{Data: message.Preview.Thumbnail}
-			if err := convertImage(tmp); err == nil {
-				payload.ExtendedTextMessage.JPEGThumbnail = tmp.Data
+			data, err := media.Convert(ctx, message.Preview.Thumbnail, &media.Spec{MIME: media.TypeJPEG})
+			if err == nil {
+				payload.ExtendedTextMessage.JPEGThumbnail = data
 			}
 		}
 	}
@@ -533,6 +537,7 @@ func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 		return "", fmt.Errorf("Cannot set avatar for unauthenticated session")
 	}
 
+	var ctx = context.Background()
 	var jid types.JID
 	var err error
 
@@ -547,12 +552,12 @@ func (s *Session) SetAvatar(resourceID string, avatar []byte) (string, error) {
 		return s.client.SetGroupPhoto(jid, nil)
 	} else {
 		// Ensure avatar is in JPEG format, and convert before setting if needed.
-		attach := &Attachment{Data: avatar}
-		if err = convertImage(attach); err != nil {
+		data, err := media.Convert(ctx, avatar, &media.Spec{MIME: media.TypeJPEG})
+		if err != nil {
 			return "", fmt.Errorf("Failed converting avatar to JPEG: %s", err)
 		}
 
-		return s.client.SetGroupPhoto(jid, attach.Data)
+		return s.client.SetGroupPhoto(jid, data)
 	}
 }
 

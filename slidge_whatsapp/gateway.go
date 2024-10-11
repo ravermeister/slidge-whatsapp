@@ -7,6 +7,9 @@ import (
 	"os"
 	"runtime"
 
+	// Internal packages.
+	"git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp/media"
+
 	// Third-party libraries.
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow/store"
@@ -76,7 +79,7 @@ func (w *Gateway) Init() error {
 	}
 
 	if w.TempDir != "" {
-		tempDir = w.TempDir
+		media.SetTempDirectory(w.TempDir)
 	}
 
 	w.callChan = make(chan func(), maxConcurrentGatewayCalls)
@@ -122,34 +125,6 @@ func (w *Gateway) CleanupSession(device LinkedDevice) error {
 	}
 
 	return nil
-}
-
-var (
-	// The default path for storing temporary files.
-	tempDir = os.TempDir()
-)
-
-// CreateTempFile creates a temporary file in the Gateway-wide temporary directory (or the default,
-// system-wide temporary directory, if no Gateway-specific value was set) and returns the absolute
-// path for the file, or an error if none could be created.
-func createTempFile(data []byte) (string, error) {
-	f, err := os.CreateTemp(tempDir, "slidge-whatsapp-*")
-	if err != nil {
-		return "", fmt.Errorf("failed creating temporary file: %w", err)
-	}
-
-	defer f.Close()
-	if len(data) > 0 {
-		if n, err := f.Write(data); err != nil {
-			os.Remove(f.Name())
-			return "", fmt.Errorf("failed writing to temporary file: %w", err)
-		} else if n < len(data) {
-			os.Remove(f.Name())
-			return "", fmt.Errorf("failed writing to temporary file: incomplete write, want %d, write %d bytes", len(data), n)
-		}
-	}
-
-	return f.Name(), nil
 }
 
 // A LogLevel represents a mapping between Python standard logging levels and Go standard logging
