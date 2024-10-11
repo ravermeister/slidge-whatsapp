@@ -38,6 +38,7 @@ RUN poetry export --without-hashes > requirements.txt
 RUN python3 -m pip install --requirement requirements.txt
 
 COPY ./slidge_whatsapp/*.go ./slidge_whatsapp/go.* /build/
+COPY ./slidge_whatsapp/media /build/media
 RUN gopy build -output=generated -no-make=true /build/
 
 FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
@@ -76,6 +77,7 @@ COPY go.* /build/
 COPY README.md /build/
 COPY slidge_whatsapp/*.py /build/slidge_whatsapp/
 COPY slidge_whatsapp/*.go /build/slidge_whatsapp/
+COPY slidge_whatsapp/media/*.go /build/slidge_whatsapp/media/
 COPY build.py /build/
 
 RUN poetry build
