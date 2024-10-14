@@ -227,15 +227,16 @@ func convertImage(_ context.Context, data []byte, spec *Spec) ([]byte, error) {
 		return nil, err
 	}
 
-	// Resize image if dimensions given in spec.
+	// Resize image if dimensions given in spec, retaining aspect ratio if either width or height
+	// aren't provided.
 	if spec.ImageWidth > 0 || spec.ImageHeight > 0 {
-		// Retain aspect ratio if either width or height aren't provided.
 		width, height := spec.ImageWidth, spec.ImageHeight
 		if width == 0 {
 			width = int(float64(img.Bounds().Max.X) / (float64(img.Bounds().Max.Y) / float64(height)))
 		} else if height == 0 {
 			height = int(float64(img.Bounds().Max.Y) / (float64(img.Bounds().Max.X) / float64(width)))
 		}
+
 		tmp := image.NewRGBA(image.Rect(0, 0, width, height))
 		draw.ApproxBiLinear.Scale(tmp, tmp.Rect, img, img.Bounds(), draw.Over, nil)
 		img = tmp
