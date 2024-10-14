@@ -26,12 +26,6 @@ ALWAYS_SYNC_ROSTER__DOC = (
     "Whether or not to perform a full sync of the WhatsApp roster on startup."
 )
 
-SKIP_VERIFY_TLS = False
-SKIP_VERIFY_TLS__DOC = (
-    "Whether or not HTTPS connections made by this plugin should verify TLS"
-    " certificates."
-)
-
 ENABLE_LINK_PREVIEWS = True
 ENABLE_LINK_PREVIEWS__DOC = (
     "Whether or not previews for links (URLs) should be generated on outgoing messages"
