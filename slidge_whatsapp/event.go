@@ -397,7 +397,7 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 		if convertSpec != nil {
 			data, err = media.Convert(context.Background(), a.Data, convertSpec)
 			if err == nil {
-				a.Data, a.MIME = data, string(media.TypeM4A)
+				a.Data, a.MIME = data, string(convertSpec.MIME)
 			}
 		}
 
@@ -542,6 +542,10 @@ func convertAttachment(attach *Attachment) error {
 			}
 		}
 	case "audio/ogg":
+		if len(attach.Data) > maxConvertAudioVideoSize {
+			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertAudioVideoSize)
+		}
+
 		spec = audioMessageSpec
 		if s, err := media.GetSpec(ctx, attach.Data); err == nil {
 			attach.spec = s
@@ -719,6 +723,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 var knownExtensions = map[string]string{
 	"image/jpeg": ".jpg",
 	"audio/ogg":  ".oga",
+	"audio/mp4":  ".m4a",
 	"video/mp4":  ".mp4",
 }
 
