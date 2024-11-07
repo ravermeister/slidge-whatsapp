@@ -20,3 +20,11 @@ Presences
 Your contacts' presence will appear as either "online" when the contact is currently using the
 WhatsApp client, or "away" otherwise; their last interaction time will also be noted if you've
 chosen to share this in the privacy settings of the official client.
+
+Broadcast Messages
+******************
+
+Broadcasts are only partially supported; specifically, only Broadcasts sent by other users will be
+conveyed via XMPP, and displayed inline with other messages from the sending user, as in the
+official WhatsApp clients. Broadcast messages cannot currently be sent via XMPP, and Broadcasts
+sent via the official WhatsApp client on the primary device will not be copied to XMPP.
