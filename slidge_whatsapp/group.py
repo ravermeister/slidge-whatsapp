@@ -34,7 +34,7 @@ class MUC(LegacyMUC[str, str, Participant, str]):
                 await self.set_avatar(avatar.URL, avatar.ID)
             elif avatar.URL == "":
                 await self.set_avatar(None)
-        except RuntimeError:
+        except RuntimeError as err:
             self.session.log.error(
                 "Failed getting avatar for group %s: %s", self.legacy_id, err
             )

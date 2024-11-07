@@ -230,12 +230,14 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 		IsCarbon:  evt.Info.IsFromMe,
 	}
 
-	// Broadcast and status messages are currently not handled at all.
+	// Handle Broadcasts and Status Updates; currently, only non-carbon, non-status broadcast
+	// messages are handled as plain messages, as support for analogues is lacking in the XMPP
+	// world.
 	if evt.Info.Chat.Server == types.BroadcastServer {
-		return EventUnknown, nil
-	}
-
-	if evt.Info.IsGroup {
+		if evt.Info.Chat.User == types.StatusBroadcastJID.User || message.IsCarbon {
+			return EventUnknown, nil
+		}
+	} else if evt.Info.IsGroup {
 		message.GroupJID = evt.Info.Chat.ToNonAD().String()
 	} else if message.IsCarbon {
 		message.JID = evt.Info.Chat.ToNonAD().String()
@@ -937,12 +939,9 @@ func newReceiptEvent(evt *events.Receipt) (EventKind, *EventPayload) {
 		return EventUnknown, nil
 	}
 
-	// Receipts for broadcast and status messages are currently not handled at all.
 	if evt.MessageSource.Chat.Server == types.BroadcastServer {
-		return EventUnknown, nil
-	}
-
-	if evt.MessageSource.IsGroup {
+		receipt.JID = evt.MessageSource.BroadcastListOwner.ToNonAD().String()
+	} else if evt.MessageSource.IsGroup {
 		receipt.GroupJID = evt.MessageSource.Chat.ToNonAD().String()
 	} else if receipt.IsCarbon {
 		receipt.JID = evt.MessageSource.Chat.ToNonAD().String()
