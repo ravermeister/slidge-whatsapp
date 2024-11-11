@@ -550,15 +550,15 @@ class Session(BaseSession[str, Recipient]):
         self, message: whatsapp.Message, muc: Optional["MUC"] = None
     ) -> str:
         body = message.Body
+        loc = message.Location
         if muc:
             body = await muc.replace_mentions(body)
-        if message.Location.Latitude > 0 or message.Location.Longitude > 0:
-            loc = message.Location
+        if loc.Latitude is not None and loc.Longitude is not None:
             body = "geo:%f,%f" % loc.Latitude, loc.Longitude
             if loc.Accuracy > 0:
                 body = body + ";u=%d" % loc.Accuracy
         if message.IsForwarded:
-            body = "↱ Forwarded message:\n> " + body
+            body = "↱ Forwarded message:\n " + add_quote_prefix(body)
         return body
 
     async def __get_reply_to(
@@ -686,6 +686,13 @@ class Attachment(LegacyAttachment):
             ),
             name=wa_attachment.Filename,
         )
+
+
+def add_quote_prefix(text: str):
+    """
+    Return multi-line text with leading quote marks (i.e. the ">" character).
+    """
+    return "\n".join(("> " + x).strip() for x in text.split("\n")).strip()
 
 
 def strip_quote_prefix(text: str):
