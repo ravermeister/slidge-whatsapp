@@ -550,13 +550,12 @@ class Session(BaseSession[str, Recipient]):
         self, message: whatsapp.Message, muc: Optional["MUC"] = None
     ) -> str:
         body = message.Body
-        loc = message.Location
         if muc:
             body = await muc.replace_mentions(body)
-        if loc.Latitude is not None and loc.Longitude is not None:
-            body = "geo:%f,%f" % (loc.Latitude, loc.Longitude)
-            if loc.Accuracy > 0:
-                body = body + ";u=%d" % loc.Accuracy
+        if message.Location.Latitude != 0 or message.Location.Longitude != 0:
+            body = "geo:%f,%f" % (message.Location.Latitude, message.Location.Longitude)
+            if message.Location.Accuracy > 0:
+                body = body + ";u=%d" % message.Location.Accuracy
         if message.IsForwarded:
             body = "↱ Forwarded message:\n " + add_quote_prefix(body)
         return body
