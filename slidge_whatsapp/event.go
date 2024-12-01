@@ -230,10 +230,9 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 		IsCarbon:  evt.Info.IsFromMe,
 	}
 
-	// Handle Broadcasts and Status Updates; currently, only non-carbon, non-status broadcast
-	// messages are handled as plain messages, as support for analogues is lacking in the XMPP
-	// world.
 	if evt.Info.Chat.Server == types.BroadcastServer {
+		// Handle non-carbon, non-status broadcast messages as plain messages; support for other
+		// types is lacking in the XMPP world.
 		if evt.Info.Chat.User == types.StatusBroadcastJID.User || message.IsCarbon {
 			return EventUnknown, nil
 		}
