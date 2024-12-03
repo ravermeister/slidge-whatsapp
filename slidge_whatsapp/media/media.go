@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	_ "image/gif"
 	"image/jpeg"
 	"image/png"
 	"math"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	// Third-party packages.
+	"github.com/h2non/filetype"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
@@ -30,17 +32,36 @@ func (t MIMEType) BaseMediaType() MIMEType {
 }
 
 const (
+	// The fallback MIME type when no concrete MIME type applies.
+	TypeUnknown MIMEType = "application/octet-stream"
+
 	// Audio formats.
 	TypeM4A MIMEType = "audio/mp4"
 	TypeOgg MIMEType = "audio/ogg"
 
 	// Video formats.
-	TypeMP4 MIMEType = "video/mp4"
+	TypeMP4  MIMEType = "video/mp4"
+	TypeWebM MIMEType = "video/webm"
 
 	// Image formats.
 	TypeJPEG MIMEType = "image/jpeg"
 	TypePNG  MIMEType = "image/png"
+	TypeGIF  MIMEType = "image/gif"
+	TypeWebP MIMEType = "image/webp"
 )
+
+// DetectMIME returns a valid MIME type, as inferred by the data given (usually the first few bytes)
+// or [UnknownMIME] if no valid MIME type could be inferred.
+func DetectMIMEType(data []byte) MIMEType {
+	switch t, _ := filetype.Match(data); t.MIME.Value {
+	case "audio/m4a":
+		return TypeM4A // Correct `audio/m4a` to its valid sub-type.
+	case "":
+		return TypeUnknown
+	default:
+		return MIMEType(t.MIME.Value)
+	}
+}
 
 // AudioCodec represents the encoding method used for an audio stream.
 type AudioCodec string
@@ -162,9 +183,19 @@ func (s Spec) commandLineArgs() ([]string, error) {
 		if s.AudioSampleRate > 0 {
 			args = append(args, "-r:a", strconv.Itoa(s.AudioSampleRate))
 		}
-	case TypeJPEG, TypePNG:
-		// Simple image formats process [Spec] parameters directly, and need no further processing.
-		return []string{}, nil
+	case TypeJPEG:
+		args = append(args, "-f", "mjpeg", "-qscale:v", "5", "-frames:v", "1")
+
+		// Scale thumbnail if width/height pixel factors given.
+		if s.ImageWidth > 0 || s.ImageHeight > 0 {
+			if s.ImageWidth == 0 {
+				s.ImageWidth = -1
+			} else if s.ImageHeight == 0 {
+				s.ImageHeight = -1
+			}
+			w, h := strconv.FormatInt(int64(s.ImageWidth), 10), strconv.FormatInt(int64(s.ImageHeight), 10)
+			args = append(args, "-vf", "scale="+w+":"+h)
+		}
 	default:
 		return nil, fmt.Errorf("cannot process media specification for empty or unknown MIME type")
 	}
@@ -180,14 +211,33 @@ func (s Spec) commandLineArgs() ([]string, error) {
 // specification given. For information on how these definitions affect media conversions, see the
 // documentation for the [Spec] type.
 func Convert(ctx context.Context, data []byte, spec *Spec) ([]byte, error) {
-	switch spec.MIME.BaseMediaType() {
-	case TypeOgg, TypeM4A, TypeMP4:
-		return convertAudioVideo(ctx, data, spec)
-	case TypeJPEG, TypePNG:
-		return convertImage(ctx, data, spec)
-	default:
-		return nil, fmt.Errorf("unknown media type given in specification")
+	var from, to = DetectMIMEType(data), spec.MIME.BaseMediaType()
+	switch from {
+	case TypeOgg, TypeM4A:
+		switch to {
+		case TypeOgg, TypeM4A:
+			return convertAudioVideo(ctx, data, spec)
+		}
+	case TypeMP4, TypeWebM:
+		switch to {
+		case TypeMP4, TypeJPEG:
+			return convertAudioVideo(ctx, data, spec)
+		}
+	case TypeGIF:
+		switch to {
+		case TypeMP4:
+			return convertAudioVideo(ctx, data, spec)
+		case TypeJPEG, TypePNG:
+			return convertImage(ctx, data, spec)
+		}
+	case TypeJPEG, TypePNG, TypeWebP:
+		switch to {
+		case TypeJPEG, TypePNG:
+			return convertImage(ctx, data, spec)
+		}
 	}
+
+	return nil, fmt.Errorf("cannot convert file of type '%s' to '%s'", from, to)
 }
 
 // ConvertAudioVideo processes the given audio/video data via FFmpeg, for the target specification
@@ -313,50 +363,6 @@ func GetSpec(ctx context.Context, data []byte) (*Spec, error) {
 	}
 
 	return &result, nil
-}
-
-// GetThumbnail returns a static JPEG image for the first frame of the given video data. If both
-// width and height dimensions are given, the thumbnail will be resized to exactly those pixel
-// values. If either dimension is given, the thumbnail will be resized while retaining aspect ratio.
-// If no value is given (i.e. if both values are zero), then the thumbnail dimensions will follow
-// input video dimensions.
-func GetThumbnail(ctx context.Context, data []byte, width, height int) ([]byte, error) {
-	in, err := createTempFile(data)
-	if err != nil {
-		return nil, err
-	}
-
-	defer os.Remove(in)
-
-	out, err := createTempFile(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	defer os.Remove(out)
-
-	args := []string{
-		"-f", "mjpeg",
-		"-qscale:v", "5",
-		"-frames:v", "1",
-		"-map_metadata", "-1",
-	}
-
-	// Scale thumbnail if width/height pixel factors given.
-	if width > 0 || height > 0 {
-		if width == 0 {
-			width = -1
-		} else if height == 0 {
-			height = -1
-		}
-		args = append(args, "-vf", "scale="+strconv.FormatInt(int64(width), 10)+":"+strconv.FormatInt(int64(height), 10))
-	}
-
-	if err := ffmpeg(ctx, in, out, args...); err != nil {
-		return nil, err
-	}
-
-	return os.ReadFile(out)
 }
 
 // GetWaveform returns a list of samples, scaled from 0 to 100, representing linear loudness values.

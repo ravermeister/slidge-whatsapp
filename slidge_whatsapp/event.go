@@ -13,7 +13,6 @@ import (
 	"git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp/media"
 
 	// Third-party libraries.
-	"github.com/h2non/filetype"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waWeb"
@@ -436,10 +435,6 @@ const (
 
 	// The maximum number of samples to return in media waveforms.
 	maxWaveformSamples = 64
-
-	// Default thumbnail width in pixels.
-	defaultThumbnailWidth = 100
-	previewThumbnailWidth = 250
 )
 
 var (
@@ -475,6 +470,18 @@ var (
 		MIME:         media.TypeJPEG,
 		ImageQuality: 85,
 	}
+
+	// Default target specifications for default and preview-size thumbnails.
+	defaultThumbnailSpec = media.Spec{
+		MIME:       media.TypeJPEG,
+		ImageWidth: 100,
+		StripMetadata: true,
+	}
+	previewThumbnailSpec = media.Spec{
+		MIME:       media.TypeJPEG,
+		ImageWidth: 250,
+		StripMetadata: true,
+	}
 )
 
 // ConvertAttachment attempts to process a given attachment from a less-supported type to a
@@ -487,11 +494,11 @@ var (
 // If the input MIME type is unknown, or conversion is impossible, the given attachment is not
 // changed.
 func convertAttachment(attach *Attachment) error {
-	var detectedMIME string
-	if t, _ := filetype.Match(attach.Data); t != filetype.Unknown {
-		detectedMIME = t.MIME.Value
+	var detectedMIME media.MIMEType
+	if t := media.DetectMIMEType(attach.Data); t != media.TypeUnknown {
+		detectedMIME = t
 		if attach.MIME == "" || attach.MIME == "application/octet-stream" {
-			attach.MIME = detectedMIME
+			attach.MIME = string(detectedMIME)
 		}
 	}
 
@@ -499,14 +506,14 @@ func convertAttachment(attach *Attachment) error {
 	var ctx = context.Background()
 
 	switch detectedMIME {
-	case "image/png", "image/webp":
+	case media.TypePNG, media.TypeWebP:
 		// Convert common image formats to JPEG for inline preview.
 		if len(attach.Data) > maxConvertImageSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertImageSize)
 		}
 
 		spec = imageMessageSpec
-	case "image/gif":
+	case media.TypeGIF:
 		// Convert animated GIFs to MP4, as required by WhatsApp.
 		if len(attach.Data) > maxConvertImageSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertImageSize)
@@ -525,7 +532,7 @@ func convertAttachment(attach *Attachment) error {
 			}
 			spec.ImageFrameRate = int(float64(len(img.Image)) / t)
 		}
-	case "audio/m4a", "audio/mp4":
+	case media.TypeM4A:
 		if len(attach.Data) > maxConvertAudioVideoSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertAudioVideoSize)
 		}
@@ -542,7 +549,7 @@ func convertAttachment(attach *Attachment) error {
 				return nil
 			}
 		}
-	case "audio/ogg":
+	case media.TypeOgg:
 		if len(attach.Data) > maxConvertAudioVideoSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertAudioVideoSize)
 		}
@@ -556,7 +563,7 @@ func convertAttachment(attach *Attachment) error {
 				spec = voiceMessageSpec
 			}
 		}
-	case "video/mp4", "video/webm":
+	case media.TypeMP4, media.TypeWebM:
 		if len(attach.Data) > maxConvertAudioVideoSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertAudioVideoSize)
 		}
@@ -637,7 +644,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				FileLength:    ptrTo(uint64(len(attach.Data))),
 			},
 		}
-		t, err := media.Convert(ctx, attach.Data, &media.Spec{MIME: media.TypeJPEG, ImageWidth: defaultThumbnailWidth})
+		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
 		if err != nil {
 			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
 		} else {
@@ -694,7 +701,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				Height:        ptrTo(uint32(spec.VideoHeight)),
 			},
 		}
-		t, err := media.GetThumbnail(ctx, attach.Data, defaultThumbnailWidth, 0)
+		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
 		if err != nil {
 			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
 		} else {
