@@ -310,11 +310,7 @@ func (s *Session) getMessagePayload(message Message) *waE2E.Message {
 		payload.ExtendedTextMessage.Description = &message.Preview.Description
 
 		if len(message.Preview.Thumbnail) > 0 && len(message.Preview.Thumbnail) < maxPreviewThumbnailSize {
-			spec := &media.Spec{
-				MIME:       media.TypeJPEG,
-				ImageWidth: previewThumbnailWidth,
-			}
-			data, err := media.Convert(ctx, message.Preview.Thumbnail, spec)
+			data, err := media.Convert(ctx, message.Preview.Thumbnail, &previewThumbnailSpec)
 			if err == nil {
 				payload.ExtendedTextMessage.JPEGThumbnail = data
 				if info, err := jpeg.DecodeConfig(bytes.NewReader(data)); err == nil {

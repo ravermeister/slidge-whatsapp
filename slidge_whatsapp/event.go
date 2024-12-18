@@ -2,10 +2,8 @@ package whatsapp
 
 import (
 	// Standard library.
-	"bytes"
 	"context"
 	"fmt"
-	"image/gif"
 	"mime"
 	"strings"
 
@@ -13,7 +11,6 @@ import (
 	"git.sr.ht/~nicoco/slidge-whatsapp/slidge_whatsapp/media"
 
 	// Third-party libraries.
-	"github.com/h2non/filetype"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waWeb"
@@ -185,6 +182,21 @@ type Attachment struct {
 	spec *media.Spec // Metadata specific to audio/video files, used in processing.
 }
 
+// GetSpec returns metadata for this attachment, as derived from the underlying attachment data.
+func (a *Attachment) GetSpec(ctx context.Context) (*media.Spec, error) {
+	if a.spec != nil {
+		return a.spec, nil
+	}
+
+	spec, err := media.GetSpec(ctx, a.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	a.spec = spec
+	return a.spec, nil
+}
+
 // PreviewKind represents different ways of previewingadditional data inline with messages.
 type PreviewKind int
 
@@ -230,10 +242,9 @@ func newMessageEvent(client *whatsmeow.Client, evt *events.Message) (EventKind, 
 		IsCarbon:  evt.Info.IsFromMe,
 	}
 
-	// Handle Broadcasts and Status Updates; currently, only non-carbon, non-status broadcast
-	// messages are handled as plain messages, as support for analogues is lacking in the XMPP
-	// world.
 	if evt.Info.Chat.Server == types.BroadcastServer {
+		// Handle non-carbon, non-status broadcast messages as plain messages; support for other
+		// types is lacking in the XMPP world.
 		if evt.Info.Chat.User == types.StatusBroadcastJID.User || message.IsCarbon {
 			return EventUnknown, nil
 		}
@@ -424,10 +435,11 @@ func getMessageAttachments(client *whatsmeow.Client, message *waE2E.Message) ([]
 	return result, info, nil
 }
 
+
 const (
 	// The MIME type used by voice messages on WhatsApp.
 	voiceMessageMIME = string(media.TypeOgg) + "; codecs=opus"
-	// the MIME type used by animated images on WhatsApp.
+	// The MIME type used by animated images on WhatsApp.
 	animatedImageMIME = "image/gif"
 
 	// The maximum image attachment size we'll attempt to process in any way, in bytes.
@@ -437,10 +449,6 @@ const (
 
 	// The maximum number of samples to return in media waveforms.
 	maxWaveformSamples = 64
-
-	// Default thumbnail width in pixels.
-	defaultThumbnailWidth = 100
-	previewThumbnailWidth = 250
 )
 
 var (
@@ -476,6 +484,18 @@ var (
 		MIME:         media.TypeJPEG,
 		ImageQuality: 85,
 	}
+
+	// Default target specifications for default and preview-size thumbnails.
+	defaultThumbnailSpec = media.Spec{
+		MIME:          media.TypeJPEG,
+		ImageWidth:    100,
+		StripMetadata: true,
+	}
+	previewThumbnailSpec = media.Spec{
+		MIME:          media.TypeJPEG,
+		ImageWidth:    250,
+		StripMetadata: true,
+	}
 )
 
 // ConvertAttachment attempts to process a given attachment from a less-supported type to a
@@ -488,11 +508,11 @@ var (
 // If the input MIME type is unknown, or conversion is impossible, the given attachment is not
 // changed.
 func convertAttachment(attach *Attachment) error {
-	var detectedMIME string
-	if t, _ := filetype.Match(attach.Data); t != filetype.Unknown {
-		detectedMIME = t.MIME.Value
+	var detectedMIME media.MIMEType
+	if t := media.DetectMIMEType(attach.Data); t != media.TypeUnknown {
+		detectedMIME = t
 		if attach.MIME == "" || attach.MIME == "application/octet-stream" {
-			attach.MIME = detectedMIME
+			attach.MIME = string(detectedMIME)
 		}
 	}
 
@@ -500,41 +520,32 @@ func convertAttachment(attach *Attachment) error {
 	var ctx = context.Background()
 
 	switch detectedMIME {
-	case "image/png", "image/webp":
+	case media.TypePNG, media.TypeWebP:
 		// Convert common image formats to JPEG for inline preview.
 		if len(attach.Data) > maxConvertImageSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertImageSize)
 		}
 
 		spec = imageMessageSpec
-	case "image/gif":
-		// Convert animated GIFs to MP4, as required by WhatsApp.
+	case media.TypeGIF:
+		// Convert GIFs to JPEG or MP4, if animated, as required by WhatsApp.
 		if len(attach.Data) > maxConvertImageSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertImageSize)
 		}
 
-		img, err := gif.DecodeAll(bytes.NewReader(attach.Data))
-		if err != nil {
-			return fmt.Errorf("unable to decode GIF attachment")
-		} else if len(img.Image) == 1 {
-			spec = imageMessageSpec
-		} else {
+		spec = imageMessageSpec
+		if s, err := attach.GetSpec(ctx); err == nil && s.ImageFrameRate > 0 {
 			spec = videoMessageSpec
-			var t float64
-			for d := range img.Delay {
-				t += float64(d) / 100
-			}
-			spec.ImageFrameRate = int(float64(len(img.Image)) / t)
+			spec.ImageFrameRate = s.ImageFrameRate
 		}
-	case "audio/m4a", "audio/mp4":
+	case media.TypeM4A:
 		if len(attach.Data) > maxConvertAudioVideoSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertAudioVideoSize)
 		}
 
 		spec = voiceMessageSpec
 
-		if s, err := media.GetSpec(ctx, attach.Data); err == nil {
-			attach.spec = s
+		if s, err := attach.GetSpec(ctx); err == nil {
 			if s.AudioCodec == "alac" {
 				// Don't attempt to process lossless files at all, as it's assumed that the sender
 				// wants to retain these characteristics. Since WhatsApp will try (and likely fail)
@@ -543,29 +554,27 @@ func convertAttachment(attach *Attachment) error {
 				return nil
 			}
 		}
-	case "audio/ogg":
+	case media.TypeOgg:
 		if len(attach.Data) > maxConvertAudioVideoSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertAudioVideoSize)
 		}
 
 		spec = audioMessageSpec
-		if s, err := media.GetSpec(ctx, attach.Data); err == nil {
-			attach.spec = s
+		if s, err := attach.GetSpec(ctx); err == nil {
 			if s.AudioCodec == "opus" {
 				// Assume that Opus-encoded Ogg files are meant to be voice messages, and re-encode
 				// them as such for WhatsApp.
 				spec = voiceMessageSpec
 			}
 		}
-	case "video/mp4", "video/webm":
+	case media.TypeMP4, media.TypeWebM:
 		if len(attach.Data) > maxConvertAudioVideoSize {
 			return fmt.Errorf("attachment size %d exceeds maximum of %d", len(attach.Data), maxConvertAudioVideoSize)
 		}
 
 		spec = videoMessageSpec
 
-		if s, err := media.GetSpec(ctx, attach.Data); err == nil {
-			attach.spec = s
+		if s, err := attach.GetSpec(ctx); err == nil {
 			// Try to see if there's a video stream for ostensibly video-related MIME types, as
 			// these are some times misdetected as such.
 			if s.VideoWidth == 0 && s.VideoHeight == 0 && s.AudioSampleRate > 0 && s.Duration > 0 {
@@ -638,18 +647,17 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				FileLength:    ptrTo(uint64(len(attach.Data))),
 			},
 		}
-		t, err := media.Convert(ctx, attach.Data, &media.Spec{MIME: media.TypeJPEG, ImageWidth: defaultThumbnailWidth})
+		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
 		if err != nil {
 			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
 		} else {
 			message.ImageMessage.JPEGThumbnail = t
 		}
 	case whatsmeow.MediaAudio:
-		spec := attach.spec
-		if spec == nil {
-			if spec, err = media.GetSpec(ctx, attach.Data); err != nil {
-				client.Log.Warnf("failed fetching attachment metadata: %s", err)
-			}
+		spec, err := attach.GetSpec(ctx)
+		if err != nil {
+			client.Log.Warnf("failed fetching attachment metadata: %s", err)
+			spec = &media.Spec{}
 		}
 		message = &waE2E.Message{
 			AudioMessage: &waE2E.AudioMessage{
@@ -675,11 +683,10 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 			}
 		}
 	case whatsmeow.MediaVideo:
-		spec := attach.spec
-		if spec == nil {
-			if spec, err = media.GetSpec(ctx, attach.Data); err != nil {
-				client.Log.Warnf("failed fetching attachment metadata: %s", err)
-			}
+		spec, err := attach.GetSpec(ctx)
+		if err != nil {
+			client.Log.Warnf("failed fetching attachment metadata: %s", err)
+			spec = &media.Spec{}
 		}
 		message = &waE2E.Message{
 			VideoMessage: &waE2E.VideoMessage{
@@ -695,7 +702,7 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				Height:        ptrTo(uint32(spec.VideoHeight)),
 			},
 		}
-		t, err := media.GetThumbnail(ctx, attach.Data, defaultThumbnailWidth, 0)
+		t, err := media.Convert(ctx, attach.Data, &defaultThumbnailSpec)
 		if err != nil {
 			client.Log.Warnf("failed generating attachment thumbnail: %s", err)
 		} else {
@@ -715,7 +722,22 @@ func uploadAttachment(client *whatsmeow.Client, attach *Attachment) (*waE2E.Mess
 				FileSHA256:    upload.FileSHA256,
 				FileLength:    ptrTo(uint64(len(attach.Data))),
 				FileName:      &attach.Filename,
-			}}
+			},
+		}
+		switch media.MIMEType(attach.MIME) {
+		case media.TypePDF:
+			if spec, err := attach.GetSpec(ctx); err != nil {
+				client.Log.Warnf("failed fetching attachment metadata: %s", err)
+			} else {
+				message.DocumentMessage.PageCount = ptrTo(uint32(spec.DocumentPage))
+			}
+			t, err := media.Convert(ctx, attach.Data, &previewThumbnailSpec)
+			if err != nil {
+				client.Log.Warnf("failed generating attachment thumbnail: %s", err)
+			} else {
+				message.DocumentMessage.JPEGThumbnail = t
+			}
+		}
 	}
 
 	return message, nil

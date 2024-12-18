@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"math"
@@ -15,8 +16,9 @@ import (
 	"time"
 
 	// Third-party packages.
+	"github.com/h2non/filetype"
 	"golang.org/x/image/draw"
-	_ "golang.org/x/image/webp"
+	"golang.org/x/image/webp"
 )
 
 // MIMEType represents a the media type for a data buffer. In general, values given concrete [MIMEType]
@@ -30,17 +32,39 @@ func (t MIMEType) BaseMediaType() MIMEType {
 }
 
 const (
+	// The fallback MIME type when no concrete MIME type applies.
+	TypeUnknown MIMEType = "application/octet-stream"
+
 	// Audio formats.
 	TypeM4A MIMEType = "audio/mp4"
 	TypeOgg MIMEType = "audio/ogg"
 
 	// Video formats.
-	TypeMP4 MIMEType = "video/mp4"
+	TypeMP4  MIMEType = "video/mp4"
+	TypeWebM MIMEType = "video/webm"
 
 	// Image formats.
 	TypeJPEG MIMEType = "image/jpeg"
 	TypePNG  MIMEType = "image/png"
+	TypeGIF  MIMEType = "image/gif"
+	TypeWebP MIMEType = "image/webp"
+
+	// Document formats.
+	TypePDF MIMEType = "application/pdf"
 )
+
+// DetectMIME returns a valid MIME type, as inferred by the data given (usually the first few bytes)
+// or [TypeUnknown] if no valid MIME type could be inferred.
+func DetectMIMEType(data []byte) MIMEType {
+	switch t, _ := filetype.Match(data); t.MIME.Value {
+	case "audio/m4a":
+		return TypeM4A // Correct `audio/m4a` to its valid sub-type.
+	case "":
+		return TypeUnknown
+	default:
+		return MIMEType(t.MIME.Value)
+	}
+}
 
 // AudioCodec represents the encoding method used for an audio stream.
 type AudioCodec string
@@ -87,6 +111,8 @@ type Spec struct {
 	ImageHeight    int // The height of the image, in pixels.
 	ImageQuality   int // Image quality for lossy image formats, typically a value from 1 to 100.
 	ImageFrameRate int // The frame-rate for animated images.
+
+	DocumentPage int // The number of pages for the document.
 
 	Duration      time.Duration // The duration of the audio or video stream.
 	StripMetadata bool          // Whether or not to remove any container-level metadata present in the stream.
@@ -162,9 +188,19 @@ func (s Spec) commandLineArgs() ([]string, error) {
 		if s.AudioSampleRate > 0 {
 			args = append(args, "-r:a", strconv.Itoa(s.AudioSampleRate))
 		}
-	case TypeJPEG, TypePNG:
-		// Simple image formats process [Spec] parameters directly, and need no further processing.
-		return []string{}, nil
+	case TypeJPEG:
+		args = append(args, "-f", "mjpeg", "-qscale:v", "5", "-frames:v", "1")
+
+		// Scale thumbnail if width/height pixel factors given.
+		if s.ImageWidth > 0 || s.ImageHeight > 0 {
+			if s.ImageWidth == 0 {
+				s.ImageWidth = -1
+			} else if s.ImageHeight == 0 {
+				s.ImageHeight = -1
+			}
+			w, h := strconv.FormatInt(int64(s.ImageWidth), 10), strconv.FormatInt(int64(s.ImageHeight), 10)
+			args = append(args, "-vf", "scale="+w+":"+h)
+		}
 	default:
 		return nil, fmt.Errorf("cannot process media specification for empty or unknown MIME type")
 	}
@@ -180,14 +216,38 @@ func (s Spec) commandLineArgs() ([]string, error) {
 // specification given. For information on how these definitions affect media conversions, see the
 // documentation for the [Spec] type.
 func Convert(ctx context.Context, data []byte, spec *Spec) ([]byte, error) {
-	switch spec.MIME.BaseMediaType() {
-	case TypeOgg, TypeM4A, TypeMP4:
-		return convertAudioVideo(ctx, data, spec)
-	case TypeJPEG, TypePNG:
-		return convertImage(ctx, data, spec)
-	default:
-		return nil, fmt.Errorf("unknown media type given in specification")
+	var from, to = DetectMIMEType(data), spec.MIME.BaseMediaType()
+	switch from {
+	case TypeOgg, TypeM4A:
+		switch to {
+		case TypeOgg, TypeM4A:
+			return convertAudioVideo(ctx, data, spec)
+		}
+	case TypeMP4, TypeWebM:
+		switch to {
+		case TypeMP4, TypeJPEG:
+			return convertAudioVideo(ctx, data, spec)
+		}
+	case TypeGIF:
+		switch to {
+		case TypeMP4:
+			return convertAudioVideo(ctx, data, spec)
+		case TypeJPEG, TypePNG:
+			return convertImage(ctx, data, spec)
+		}
+	case TypeJPEG, TypePNG, TypeWebP:
+		switch to {
+		case TypeJPEG, TypePNG:
+			return convertImage(ctx, data, spec)
+		}
+	case TypePDF:
+		switch to {
+		case TypeJPEG, TypePNG:
+			return convertDocument(ctx, data, spec)
+		}
 	}
+
+	return nil, fmt.Errorf("cannot convert file of type '%s' to '%s'", from, to)
 }
 
 // ConvertAudioVideo processes the given audio/video data via FFmpeg, for the target specification
@@ -227,6 +287,18 @@ func convertImage(_ context.Context, data []byte, spec *Spec) ([]byte, error) {
 		return nil, err
 	}
 
+	return processImage(img, spec)
+}
+
+// ConvertDocument processes the given document, extracting [Spec.PageNumber] as an image of a MIME
+// type corresponding to the given [Spec.MIME]. An error is returned if the data given is not a
+// valid document, or if the page number requested does not exist.
+func convertDocument(ctx context.Context, data []byte, spec *Spec) ([]byte, error) {
+	return internalConvertDocument(ctx, data, spec)
+}
+
+// ProcessImage handles processing and encoding for the given Go-native image representation.
+func processImage(img image.Image, spec *Spec) ([]byte, error) {
 	// Resize image if dimensions given in spec, retaining aspect ratio if either width or height
 	// aren't provided.
 	if spec.ImageWidth > 0 || spec.ImageHeight > 0 {
@@ -242,8 +314,10 @@ func convertImage(_ context.Context, data []byte, spec *Spec) ([]byte, error) {
 		img = tmp
 	}
 
+	var err error
+	var buf bytes.Buffer
+
 	// Re-encode image based on target MIME type.
-	var out bytes.Buffer
 	switch spec.MIME.BaseMediaType() {
 	case TypeJPEG:
 		o := jpeg.Options{Quality: spec.ImageQuality}
@@ -251,33 +325,47 @@ func convertImage(_ context.Context, data []byte, spec *Spec) ([]byte, error) {
 			o.Quality = jpeg.DefaultQuality
 		}
 
-		if err = jpeg.Encode(&out, img, nil); err != nil {
-			return nil, err
-		}
+		err = jpeg.Encode(&buf, img, nil)
 	case TypePNG:
-		if err = png.Encode(&out, img); err != nil {
-			return nil, err
-		}
+		err = png.Encode(&buf, img)
 	}
 
-	return out.Bytes(), nil
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 // GetSpec returns a media specification corresponding to the data given. The [Spec] value returned
 // will only have its fields partially populated, as not all values can be derived accurately.
 func GetSpec(ctx context.Context, data []byte) (*Spec, error) {
+	switch DetectMIMEType(data) {
+	case TypeJPEG, TypePNG, TypeGIF, TypeWebP:
+		return getImageSpec(ctx, data)
+	case TypePDF:
+		return getDocumentSpec(ctx, data)
+	default:
+		// Assume file is some form of audio or video file, and attempt best-effort extraction of spec.
+		return getAudioVideoSpec(ctx, data)
+	}
+}
+
+// GetAudioVideoSpec attempts to fetch as much metadata as possible from the given data buffer, which
+// is assumed to be some form of audio of video file, via FFmpeg.
+func getAudioVideoSpec(ctx context.Context, data []byte) (*Spec, error) {
 	in, err := createTempFile(data)
 	if err != nil {
 		return nil, err
 	}
 
 	defer os.Remove(in)
+	var result Spec
 
 	out, err := ffprobe(ctx, in,
 		"-show_entries", "stream=codec_name,width,height,sample_rate,duration",
 	)
 
-	var result Spec
 	if s, ok := out["streams"].([]any); ok {
 		if len(s) == 0 {
 			return nil, fmt.Errorf("no valid audio/video streams found in data")
@@ -315,48 +403,54 @@ func GetSpec(ctx context.Context, data []byte) (*Spec, error) {
 	return &result, nil
 }
 
-// GetThumbnail returns a static JPEG image for the first frame of the given video data. If both
-// width and height dimensions are given, the thumbnail will be resized to exactly those pixel
-// values. If either dimension is given, the thumbnail will be resized while retaining aspect ratio.
-// If no value is given (i.e. if both values are zero), then the thumbnail dimensions will follow
-// input video dimensions.
-func GetThumbnail(ctx context.Context, data []byte, width, height int) ([]byte, error) {
-	in, err := createTempFile(data)
-	if err != nil {
-		return nil, err
-	}
+// GetImageSpec fetches as much metadata as possible from the given data buffer, which is assumed to
+// be a valid image (e.g. a JPEG, PNG, GIF) file.
+func getImageSpec(_ context.Context, data []byte) (*Spec, error) {
+	var err error
+	var config image.Config
+	var buf = bytes.NewReader(data)
 
-	defer os.Remove(in)
-
-	out, err := createTempFile(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	defer os.Remove(out)
-
-	args := []string{
-		"-f", "mjpeg",
-		"-qscale:v", "5",
-		"-frames:v", "1",
-		"-map_metadata", "-1",
-	}
-
-	// Scale thumbnail if width/height pixel factors given.
-	if width > 0 || height > 0 {
-		if width == 0 {
-			width = -1
-		} else if height == 0 {
-			height = -1
+	switch DetectMIMEType(data) {
+	case TypeGIF:
+		dec, err := gif.DecodeAll(buf)
+		if err != nil {
+			return nil, err
 		}
-		args = append(args, "-vf", "scale="+strconv.FormatInt(int64(width), 10)+":"+strconv.FormatInt(int64(height), 10))
+		var spec Spec
+		if len(dec.Image) > 1 {
+			var t float64
+			for d := range dec.Delay {
+				t += float64(d) / 100
+			}
+			if t > 0 {
+				spec.ImageFrameRate = int(float64(len(dec.Image)) / t)
+			}
+		}
+		s := dec.Image[0].Bounds().Max
+		spec.ImageWidth, spec.ImageHeight = s.X, s.Y
+		return &spec, nil
+	case TypeJPEG:
+		config, err = jpeg.DecodeConfig(buf)
+	case TypePNG:
+		config, err = png.DecodeConfig(buf)
+	case TypeWebP:
+		config, err = webp.DecodeConfig(buf)
 	}
 
-	if err := ffmpeg(ctx, in, out, args...); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
-	return os.ReadFile(out)
+	return &Spec{
+		ImageWidth:  config.Width,
+		ImageHeight: config.Height,
+	}, nil
+}
+
+// GetDocumentSpec fetches as much metadata as possible from the given data buffer, which is assumed
+// to be a valid PDF file.
+func getDocumentSpec(ctx context.Context, data []byte) (*Spec, error) {
+	return internalGetDocumentSpec(ctx, data)
 }
 
 // GetWaveform returns a list of samples, scaled from 0 to 100, representing linear loudness values.
