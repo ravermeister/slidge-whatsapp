@@ -18,6 +18,14 @@ RUN echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/
     libssl-dev \
     pkg-config \
     python3-dev \
+    libmupdf-dev \
+    libgumbo-dev \
+    libfreetype6-dev \
+    libharfbuzz-dev \
+    libjbig2dec0-dev \
+    libjpeg62-turbo-dev \
+    libmujs-dev \
+    libopenjp2-7-dev \
     rustc \
     && apt-get install -y golang -t bookworm-backports
 
@@ -28,7 +36,7 @@ RUN ln -s /venv/lib/python$PYTHONVER /venv/lib/python
 WORKDIR /build
 
 ENV GOBIN="/usr/local/bin"
-RUN go install -v github.com/go-python/gopy@latest
+RUN go install -v github.com/go-python/gopy@master
 RUN go install golang.org/x/tools/cmd/goimports@latest
 
 ENV PATH="/root/.local/bin:$PATH"
@@ -39,12 +47,14 @@ RUN python3 -m pip install --requirement requirements.txt
 
 COPY ./slidge_whatsapp/*.go ./slidge_whatsapp/go.* /build/
 COPY ./slidge_whatsapp/media /build/media
-RUN gopy build -output=generated -no-make=true /build/
+
+ENV CGO_LDFLAGS="-lgumbo -lfreetype -ljbig2dec -lharfbuzz -ljpeg -lmujs -lopenjp2"
+RUN gopy build -output=generated -no-make=true -build-tags="mupdf extlib static" /build/
 
 FROM docker.io/nicocool84/slidge-base AS slidge-whatsapp
 
 USER root
-RUN apt update -y && apt install ffmpeg -y
+RUN apt update -y && apt install -y ffmpeg libgumbo1 libfreetype6 libharfbuzz0b libjbig2dec0 libjpeg62-turbo libmujs2 libopenjp2-7
 
 COPY --from=builder /venv /venv
 COPY ./slidge_whatsapp/*.py /venv/lib/python/site-packages/legacy_module/
@@ -57,7 +67,7 @@ FROM builder AS slidge-whatsapp-dev
 COPY --from=docker.io/nicocool84/slidge-prosody-dev:latest /etc/prosody/certs/localhost.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 
-RUN apt update -y && apt install ffmpeg -y
+RUN apt update -y && apt install -y ffmpeg
 RUN pip install watchdog[watchmedo]
 ENV SLIDGE_LEGACY_MODULE=slidge_whatsapp
 
