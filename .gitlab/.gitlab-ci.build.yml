@@ -1,0 +1,72 @@
+# docker in docker template
+.dind:
+  image: docker
+  services:
+    - name: docker:dind
+      command: ["--experimental"]
+  tags:
+    - docker
+    - arm64
+  before_script:
+    - apk add --no-cache make git bash curl libsecret pass gpg-agent openssh-client
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - .gitlab/docker-credential-init.sh "${GPG_USER}" "${GPG_MAIL}"
+    - mkdir -p ~/.docker/cli-plugins
+    - curl -sSLo ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/$BUILDX_VERSION/buildx-$BUILDX_VERSION.$BUILDX_ARCHITECTURE
+    - chmod +x ~/.docker/cli-plugins/docker-buildx
+    - mkdir -p /usr/local/bin
+    - curl -sSLo /usr/local/bin/docker-credential-pass https://github.com/docker/docker-credential-helpers/releases/download/$DOCKER_CREDENTIAL_HELPER_VERSION/docker-credential-pass-$DOCKER_CREDENTIAL_HELPER_VERSION.$DOCKER_CREDENTIAL_HELPER_ARCHITECTURE
+    - chmod +x /usr/local/bin/docker-credential-pass
+    - docker context create tls-environment >/dev/null
+    - docker buildx create --use tls-environment >/dev/null
+    - echo "${DOCKER_AUTH_CONFIG}" > ~/.docker/config.json
+    - echo "${CI_REGISTRY_PASSWORD}" | awk '{print $0}' | docker login --username "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  after_script:
+    - docker logout
+
+####################################
+
+### create arm64
+image_arm64:
+  extends: .dind
+  stage: create
+  dependencies: []
+  needs: []
+  rules:
+    - if: $SYNC_ONLY == "true"
+      when: never
+    - if: $SYNC_ONLY != "true"
+      when: always
+  script:
+    - >
+      docker buildx build --no-cache --force-rm --compress --load \
+        --platform "linux/arm64" \
+        --target "${SLIDGE_MODULE}" \
+        -t "${SLIDGE_MODULE}" \
+        -t "${CI_REGISTRY_IMAGE}:arm64" \
+        .
+    - docker push "${CI_REGISTRY_IMAGE}:arm64"
+
+### add tags to manifest
+manifest:
+  extends: .dind
+  stage: release
+  dependencies: [ ]
+  needs:
+    - image_arm64
+  rules:
+    - if: $SYNC_ONLY == "true"
+      when: never
+    - if: $SYNC_ONLY != "true"
+      when: always
+  script:
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:latest" "${CI_REGISTRY_IMAGE}:arm64"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:master" "${CI_REGISTRY_IMAGE}:arm64"
+    # tag with commit sha
+    - git remote add "${GIT_UPSTREAM_REPO_NAME}" "${GIT_UPSTREAM_REPO_URL}" || true
+    - git remote -v
+    - git fetch "${GIT_UPSTREAM_REPO_NAME}"
+    - export last_commit_sha=$(git rev-parse --short "${GIT_UPSTREAM_REPO_NAME}/${GIT_UPSTREAM_REPO_BRANCH}")
+    - echo "using the latest commit >${last_commit_sha}< as version tag"
+    - docker buildx imagetools create --tag "${CI_REGISTRY_IMAGE}:${last_commit_sha}" "${CI_REGISTRY_IMAGE}:arm64"

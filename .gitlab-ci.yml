@@ -1,0 +1,50 @@
+stages:
+  - sync
+  - create
+  - release
+
+include:
+  - local: .gitlab/.gitlab-ci.build.yml
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  DOCKER_DRIVER: overlay2
+  BUILDX_VERSION: v${DOCKER_BUILDX_VERSION}
+  BUILDX_ARCHITECTURE: linux-arm64
+  DOCKER_CREDENTIAL_HELPER_VERSION: v${DOCKER_CRED_HELPER_VERSION}
+  DOCKER_CREDENTIAL_HELPER_ARCHITECTURE: linux-arm64
+  SYNC_ONLY: "false"
+  SLIDGE_MODULE: "slidge-whatsapp"
+  GIT_UPSTREAM_REPO_NAME: codeberg
+  GIT_UPSTREAM_REPO_URL: https://codeberg.org/slidge/${SLIDGE_MODULE}
+  GIT_UPSTREAM_REPO_BRANCH: main
+  GIT_SYNC_USER: git-sync
+  GIT_SYNC_EMAIL: info@rimkus.it
+  CI_REGISTRY_IMAGE: ravermeister/${SLIDGE_MODULE}
+  GPG_USER: slidge-ci
+  GPG_MAIL: info@rimkus.it
+  DOCKER_AUTH_CONFIG: '
+    {
+      "credsStore": "pass"
+    }
+  '
+
+
+### sync upstream repo
+sync_upstream:
+  stage: sync
+  tags:
+    - docker
+  rules:
+    - if: $SYNC_ONLY == "true"
+      when: always
+    - when: never
+  before_script:
+    - apk add git openssh-client
+    - git config --global user.name "${GIT_SYNC_USER}"
+    - git config --global user.email "${GIT_SYNC_EMAIL}"
+    - export GIT_DOWNSTREAM_REPO_URL="https://gitlab-sync:${GROUP_ACCESS_TOKEN}@$(echo -n "${CI_REPOSITORY_URL}" | cut -d "@" -f2 )"
+  script:
+    - .gitlab/git-sync.sh "${GIT_DOWNSTREAM_REPO_URL}" "${CI_COMMIT_BRANCH}" "${GIT_UPSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_BRANCH}" "${GIT_UPSTREAM_REPO_NAME}"
+    - .gitlab/git-sync.sh "${GIT_DOWNSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_BRANCH}" "${GIT_UPSTREAM_REPO_URL}" "${GIT_UPSTREAM_REPO_BRANCH}" "${GIT_UPSTREAM_REPO_NAME}"
+### see .gitlab/.gitlab-ci.build.yml for docker image creation
